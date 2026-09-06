@@ -34,11 +34,11 @@ spec:
           - path: deployments/agents/*/*
   template:
     metadata:
-      name: 'agent-{{ index .path.segments 1 }}-{{ .path.basename }}'
+      name: 'agent-{{ index .path.segments 2 }}-{{ .path.basename }}'
       labels:
-        goldenpath.dev/team: '{{ index .path.segments 1 }}'
+        goldenpath.dev/team: '{{ index .path.segments 2 }}'
     spec:
-      project: 'team-{{ index .path.segments 1 }}'
+      project: 'team-{{ index .path.segments 2 }}'
       sources:
         - repoURL: https://github.com/dackota/agent-golden-path.git
           targetRevision: main
@@ -52,7 +52,7 @@ spec:
           ref: values
       destination:
         server: https://kubernetes.default.svc
-        namespace: 'team-{{ index .path.segments 1 }}'
+        namespace: 'team-{{ index .path.segments 2 }}'
       syncPolicy:
         automated:
           prune: true
