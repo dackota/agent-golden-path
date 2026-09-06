@@ -22,7 +22,10 @@ budget:
 
 # Prompt and tools. Used by kind=prompt. Passed to kind=container as env.
 systemPrompt: ""
-tools: []                # e.g. [{name: k8s-readonly}, {name: grafana, approval: true}]
+tools: []                # catalog tools: {name: k8s-readonly}, {name: orders-cancel, approval: true}
+                         # or another agent, by team/name: {agent: ops/orders-agent}  (prompt kind only)
+delegation:
+  allowFromTeams: []     # prompt kind only. Teams whose agents may call this one over A2A.
 
 # --- kind: container ---------------------------------------------------------
 image: ""                # ghcr.io/<org>/<repo>:<version>. No :latest.

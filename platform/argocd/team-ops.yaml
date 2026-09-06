@@ -1,0 +1,19 @@
+# PROTOTYPE. Platform-owned Argo wiring. One AppProject per team, one ApplicationSet for all teams.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: team-ops
+  namespace: argocd
+spec:
+  description: Agents owned by team ops
+  sourceRepos:
+    - https://github.com/dackota/agent-golden-path.git
+  destinations:
+    - namespace: team-ops
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []          # no cluster-scoped resources, ever
+  namespaceResourceBlacklist:
+    - {group: "", kind: ResourceQuota}
+    - {group: "", kind: LimitRange}
+    - {group: rbac.authorization.k8s.io, kind: Role}
+    - {group: rbac.authorization.k8s.io, kind: RoleBinding}

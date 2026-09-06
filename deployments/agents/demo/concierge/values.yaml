@@ -1,0 +1,12 @@
+# A front-door agent that delegates. It has no order tools of its own.
+name: concierge
+team: demo
+owner: dackota.j@gmail.com
+description: Front door that routes order questions to the ops orders agent.
+kind: prompt
+systemPrompt: |
+  You are the concierge. For anything about orders, delegate to the orders agent tool
+  and relay its answer. For Kubernetes questions use the k8s tools. Be brief.
+tools:
+  - agent: ops/orders-agent
+  - name: k8s-readonly

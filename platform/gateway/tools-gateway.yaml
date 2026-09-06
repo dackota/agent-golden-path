@@ -16,6 +16,12 @@ spec:
           port: 8084
           path: /mcp
           protocol: StreamableHTTP
+      - name: orders
+        static:
+          host: orders-mcp.kagent.svc.cluster.local
+          port: 8080
+          path: /mcp
+          protocol: StreamableHTTP
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

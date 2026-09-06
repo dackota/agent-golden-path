@@ -29,6 +29,16 @@ spec:
       resources: {{- include "agent.resources" . | nindent 8 }}
     tools:
       {{- range .Values.tools }}
+      {{- if .agent }}
+      {{- $parts := splitList "/" .agent }}
+      # Delegation over A2A: this agent may hand work to another agent.
+      - type: Agent
+        agent:
+          apiGroup: kagent.dev
+          kind: Agent
+          name: {{ last $parts }}
+          namespace: team-{{ first $parts }}
+      {{- else }}
       {{- $entry := index $cat .name }}
       - type: McpServer
         mcpServer:
@@ -43,4 +53,15 @@ spec:
           requireApproval: {{ toJson $entry.tools }}
           {{- end }}
       {{- end }}
+      {{- end }}
+  {{- with .Values.delegation.allowFromTeams }}
+  # Which teams' agents may call this one over A2A. kagent refuses everyone else.
+  allowedNamespaces:
+    from: Selector
+    selector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: {{ toJson (list) | trimSuffix "]" }}{{ range $i, $t := . }}{{ if $i }}, {{ end }}"team-{{ $t }}"{{ end }}]
+  {{- end }}
 {{- end }}

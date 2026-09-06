@@ -1,0 +1,15 @@
+# A specialist agent owned by team ops. Other teams may delegate to it over A2A.
+name: orders-agent
+team: ops
+owner: dackota.j@gmail.com
+description: Answers questions about customer orders using the Orders API.
+kind: prompt
+systemPrompt: |
+  You are the orders specialist. Use the order tools to answer precisely.
+  Report order id, customer, status, and total. Never guess.
+tools:
+  - name: orders-readonly
+  - name: orders-cancel
+    approval: true
+delegation:
+  allowFromTeams: [demo]

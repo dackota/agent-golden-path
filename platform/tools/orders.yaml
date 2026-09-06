@@ -1,0 +1,80 @@
+# Example: an internal REST API exposed to agents as MCP tools.
+#
+#   orders-api  (plain Deployment, namespace demo-apis)  <- stands in for any business API
+#   orders-mcp  (kagent MCPServer, namespace kagent)     <- kmcp deploys and fronts the MCP wrapper
+#   orders-mcp  (kagent RemoteMCPServer, namespace kagent) <- catalog entry, shared with agent namespaces
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-apis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+  namespace: demo-apis
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: orders-api}}
+  template:
+    metadata: {labels: {app: orders-api}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: ghcr.io/dackota/orders-demo:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-u", "api.py"]
+          env: [{name: PORT, value: "8000"}]
+          ports: [{containerPort: 8000}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8000}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 128Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-api
+  namespace: demo-apis
+spec:
+  selector: {app: orders-api}
+  ports: [{port: 8000, targetPort: 8000}]
+---
+# kmcp (installed with kagent) turns this into a Deployment and a Service named orders-mcp.
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: orders-mcp
+  namespace: kagent
+spec:
+  transportType: http
+  httpTransport:
+    path: /mcp
+    targetPort: 8080
+  deployment:
+    image: ghcr.io/dackota/orders-demo:0.1.0
+    imagePullPolicy: IfNotPresent
+    port: 8080
+    cmd: python
+    args: ["-u", "mcp_server.py"]
+    env:
+      ORDERS_API_URL: http://orders-api.demo-apis.svc.cluster.local:8000
+    podSecurityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+    securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+    resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 128Mi}}
+---
+# The catalog entry agents reference. Shared only with labeled agent namespaces.
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: orders-mcp
+  namespace: kagent
+spec:
+  description: Orders API as tools
+  protocol: STREAMABLE_HTTP
+  url: http://orders-mcp.kagent.svc.cluster.local:8080/mcp
+  allowedNamespaces:
+    from: Selector
+    selector:
+      matchLabels:
+        goldenpath.dev/agent-namespace: "true"

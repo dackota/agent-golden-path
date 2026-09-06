@@ -20,16 +20,18 @@ goldenpath.dev/description: {{ .Values.description | quote }}
 
 {{/* Tool catalog: friendly name -> MCP server and the exact tool names it grants. Platform-maintained. */}}
 {{- define "agent.catalog" -}}
-{"k8s-readonly": {"server": "kagent-tool-server", "tools": ["k8s_get_resources", "k8s_describe_resource", "k8s_get_pod_logs"]},
- "grafana":      {"server": "kagent-grafana-mcp", "tools": []},
- "web-fetch":    {"server": "kagent-tool-server", "tools": ["http_fetch"]}}
+{"k8s-readonly":    {"server": "kagent-tool-server", "tools": ["k8s_get_resources", "k8s_describe_resource", "k8s_get_pod_logs"]},
+ "grafana":         {"server": "kagent-grafana-mcp", "tools": []},
+ "web-fetch":       {"server": "kagent-tool-server", "tools": ["http_fetch"]},
+ "orders-readonly": {"server": "orders-mcp", "tools": ["list_orders", "get_order"]},
+ "orders-cancel":   {"server": "orders-mcp", "tools": ["cancel_order"]}}
 {{- end }}
 
 {{/* Flat, sorted, unique list of granted tool names as JSON. */}}
 {{- define "agent.toolNames" -}}
 {{- $cat := include "agent.catalog" . | fromJson -}}
 {{- $names := list -}}
-{{- range .Values.tools }}{{ range (index $cat .name).tools }}{{ $names = append $names . }}{{ end }}{{ end -}}
+{{- range .Values.tools }}{{ if .name }}{{ range (index $cat .name).tools }}{{ $names = append $names . }}{{ end }}{{ end }}{{ end -}}
 {{- $names | uniq | sortAlpha | toJson -}}
 {{- end }}
 
