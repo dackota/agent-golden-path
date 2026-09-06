@@ -1,0 +1,65 @@
+# PROTOTYPE. Platform-owned sandbox blueprint for kind=codeexec agents.
+# Devs never edit this. They file a SandboxClaim against the warm pool.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-demo
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: platform-python
+  namespace: team-demo
+spec:
+  podTemplate:
+    spec:
+      # runtimeClassName: gvisor   # ON in real clusters. kind on macOS has no gVisor.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: sandbox
+          image: python:3.12-slim
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          env:
+            - {name: LLM_BASE_URL, value: "http://litellm.platform-gateway.svc.cluster.local:4000"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: work, mountPath: /work}
+            - {name: tmp, mountPath: /tmp}
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+      volumes:
+        - name: work
+          emptyDir: {sizeLimit: 2Gi}
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
+  # One NetworkPolicy per sandbox. DNS and the gateway only. No API server, no other pods.
+  networkPolicy:
+    ingress: []
+    egress:
+      - ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+      - to:
+          - namespaceSelector:
+              matchLabels: {kubernetes.io/metadata.name: platform-gateway}
+            podSelector:
+              matchLabels: {app: litellm}
+        ports: [{protocol: TCP, port: 4000}]
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: platform-python-pool
+  namespace: team-demo
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: platform-python

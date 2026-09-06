@@ -1,0 +1,122 @@
+# PROTOTYPE. Central LLM gateway. Platform-owned. Installed once.
+# Holds the real model credentials. Mints one virtual key per agent with a budget.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-gateway
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: litellm-secrets
+  namespace: platform-gateway
+type: Opaque
+stringData:
+  LITELLM_MASTER_KEY: sk-spike-master-CHANGE-ME
+  LITELLM_SALT_KEY: sk-spike-salt-CHANGE-ME
+  DATABASE_URL: postgresql://litellm:litellm@litellm-db.platform-gateway.svc.cluster.local:5432/litellm
+  POSTGRES_PASSWORD: litellm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: platform-gateway
+data:
+  config.yaml: |
+    # Model catalog. Dev teams pick a NAME from this list, never a provider.
+    # Fake prices are set so budgets do something in the spike (Ollama is free).
+    model_list:
+      - model_name: default-chat
+        litellm_params:
+          model: ollama_chat/gemma4:12b
+          api_base: http://host.docker.internal:11434
+          keep_alive: 10m
+        model_info:
+          supports_function_calling: true
+          input_cost_per_token: 0.000003
+          output_cost_per_token: 0.000015
+      - model_name: default-fast
+        litellm_params:
+          model: ollama_chat/gemma4:12b
+          api_base: http://host.docker.internal:11434
+        model_info:
+          supports_function_calling: true
+          input_cost_per_token: 0.000001
+          output_cost_per_token: 0.000002
+    litellm_settings:
+      drop_params: true
+      turn_off_message_logging: true   # content capture off by default
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+      database_url: os.environ/DATABASE_URL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm-db
+  namespace: platform-gateway
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: litellm-db}}
+  template:
+    metadata: {labels: {app: litellm-db}}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - {name: POSTGRES_USER, value: litellm}
+            - {name: POSTGRES_DB, value: litellm}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: litellm-secrets, key: POSTGRES_PASSWORD}}
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: [pg_isready, -U, litellm]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm-db
+  namespace: platform-gateway
+spec:
+  selector: {app: litellm-db}
+  ports: [{port: 5432, targetPort: 5432}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: platform-gateway
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: litellm}}
+  template:
+    metadata: {labels: {app: litellm}}
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm-database:v1.90.2
+          args: ["--config", "/etc/litellm/config.yaml", "--port", "4000"]
+          envFrom: [{secretRef: {name: litellm-secrets}}]
+          ports: [{containerPort: 4000}]
+          volumeMounts: [{name: config, mountPath: /etc/litellm}]
+          readinessProbe:
+            httpGet: {path: /health/readiness, port: 4000}
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 200m, memory: 512Mi}
+            limits: {cpu: "2", memory: 2Gi}
+      volumes:
+        - name: config
+          configMap: {name: litellm-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: litellm
+  namespace: platform-gateway
+spec:
+  selector: {app: litellm}
+  ports: [{port: 4000, targetPort: 4000}]

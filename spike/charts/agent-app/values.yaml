@@ -1,0 +1,17 @@
+# Dev-facing knobs. Everything NOT listed here is fixed by the platform.
+name: ""
+team: ""
+owner: ""
+image: ""
+port: 8080
+replicas: 1
+model: default-chat
+systemPrompt: ""
+gatewayUrl: http://litellm.platform-gateway.svc.cluster.local:4000
+extraEgressHosts: []
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {cpu: "1", memory: 1Gi}
+autoscaling:
+  maxReplicas: 3
+  targetCPU: 70

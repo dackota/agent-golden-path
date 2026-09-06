@@ -1,0 +1,8 @@
+# kind=codeexec: an agent that runs generated code. Gets an isolated sandbox.
+name: data-cruncher
+team: demo
+owner: dackota.johnson@suresteel.com
+kind: codeexec
+description: Runs generated Python over CSV files.
+budget:
+  usdPerMonth: 50

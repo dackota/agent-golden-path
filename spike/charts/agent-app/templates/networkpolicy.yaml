@@ -1,0 +1,35 @@
+# Default deny egress. Allow only DNS and the platform gateway.
+# The gateway holds every model and tool credential. The app never sees them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.name }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector: {}
+      ports: [{port: {{ .Values.port }}, protocol: TCP}]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+      ports: [{port: 53, protocol: UDP}, {port: 53, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: platform-gateway}
+          podSelector:
+            matchLabels: {app: litellm}
+      ports: [{port: 4000, protocol: TCP}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: platform-observability}
+      ports: [{port: 4318, protocol: TCP}]
+{{- if .Values.extraEgressHosts }}
+    # extraEgressHosts needs an FQDN-aware CNI (Cilium CiliumNetworkPolicy toFQDNs).
+    # Plain NetworkPolicy cannot match hostnames. Rendered as an annotation for now.
+{{- end }}

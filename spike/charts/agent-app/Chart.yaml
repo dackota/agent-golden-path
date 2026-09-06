@@ -1,0 +1,6 @@
+apiVersion: v2
+name: agent-app
+description: PROTOTYPE universal agent chart. One vibe-coded HTTP app, platform guard rails baked in.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

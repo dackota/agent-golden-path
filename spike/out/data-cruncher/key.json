@@ -1,0 +1,8 @@
+{
+  "agent": "data-cruncher",
+  "namespace": "team-demo",
+  "team": "demo",
+  "owner": "dackota.johnson@suresteel.com",
+  "model": "default-chat",
+  "usdPerMonth": 50
+}

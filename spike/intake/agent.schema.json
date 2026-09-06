@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "agent.yaml intake contract (PROTOTYPE)",
+  "type": "object",
+  "required": ["name", "team", "owner", "kind", "description"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,30}$"},
+    "team": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,20}$"},
+    "owner": {"type": "string", "format": "email"},
+    "kind": {"type": "string", "enum": ["prompt", "container", "codeexec"],
+      "description": "prompt = a system prompt plus tools (a 'skill'). container = your own HTTP app image. codeexec = agent that runs generated code, needs a sandbox."},
+    "description": {"type": "string", "maxLength": 200},
+    "model": {"type": "string", "enum": ["default-chat", "default-fast"], "default": "default-chat"},
+    "systemPrompt": {"type": "string", "maxLength": 20000},
+    "tools": {"type": "array", "maxItems": 10, "items": {
+      "type": "object", "required": ["name"], "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "enum": ["k8s-readonly", "grafana", "web-fetch"]},
+        "approval": {"type": "boolean", "default": false}
+      }}},
+    "budget": {"type": "object", "additionalProperties": false, "properties": {
+      "usdPerMonth": {"type": "number", "minimum": 1, "maximum": 500, "default": 20}}},
+    "container": {"type": "object", "required": ["image"], "additionalProperties": false, "properties": {
+      "image": {"type": "string", "pattern": "^(ghcr\\.io/suresteel|spike)/[a-z0-9./-]+:[A-Za-z0-9._-]+$"},
+      "port": {"type": "integer", "minimum": 1024, "maximum": 65535, "default": 8080},
+      "replicas": {"type": "integer", "minimum": 1, "maximum": 5, "default": 1}}},
+    "egress": {"type": "array", "maxItems": 5, "items": {"type": "string", "enum": ["api.github.com", "api.slack.com"]}}
+  }
+}

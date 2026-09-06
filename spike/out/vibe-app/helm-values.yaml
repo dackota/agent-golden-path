@@ -1,0 +1,12 @@
+name: vibe-app
+team: demo
+owner: dackota.johnson@suresteel.com
+image: spike/vibe-app:0.1.0
+port: 8080
+replicas: 1
+model: default-chat
+systemPrompt: 'You are a friendly helper. Keep answers under 30 words.
+
+  '
+gatewayUrl: http://litellm.platform-gateway.svc.cluster.local:4000
+extraEgressHosts: []

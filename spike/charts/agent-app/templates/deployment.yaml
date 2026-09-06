@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+  annotations:
+    platform.suresteel.com/owner: {{ .Values.owner | quote }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.name }}
+  template:
+    metadata:
+      labels: {{- include "agent.labels" . | nindent 8 }}
+      annotations:
+        checksum/prompt: {{ .Values.systemPrompt | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.name }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: agent
+          image: {{ .Values.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: {{ .Values.port }}
+          env:
+            - {name: PORT, value: {{ .Values.port | quote }}}
+            - {name: LLM_BASE_URL, value: {{ .Values.gatewayUrl | quote }}}
+            - {name: LLM_MODEL, value: {{ .Values.model | quote }}}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.name }}-llm-key, key: LLM_API_KEY}
+            - name: AGENT_SYSTEM_PROMPT
+              valueFrom:
+                configMapKeyRef: {name: {{ .Values.name }}-prompt, key: system.txt}
+            - {name: OTEL_SERVICE_NAME, value: {{ .Values.name | quote }}}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.platform-observability.svc.cluster.local:4318"}
+            - {name: OTEL_RESOURCE_ATTRIBUTES, value: "team={{ .Values.team }},platform.kind=container"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 15
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
