@@ -1,0 +1,15 @@
+# PROTOTYPE. The one agentgateway data plane. All MCP (and later LLM) traffic goes through it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: agentgateway-proxy
+  namespace: agentgateway-system
+spec:
+  gatewayClassName: agentgateway
+  listeners:
+    - protocol: HTTP
+      port: 80
+      name: http
+      allowedRoutes:
+        namespaces:
+          from: All

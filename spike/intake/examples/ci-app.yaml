@@ -1,0 +1,17 @@
+# kind=container built by CI. Image comes from the template repo via the shared workflow.
+name: ci-app
+team: demo
+owner: dackota.johnson@suresteel.com
+kind: container
+description: Template agent built and signed by the shared golden-path workflow.
+model: default-chat
+systemPrompt: |
+  You are a helpful assistant. Use tools when they help. Keep answers under 40 words.
+tools:
+  - name: k8s-readonly
+container:
+  image: ghcr.io/dackota/agent-app-template:0.2.0
+  port: 8080
+  replicas: 1
+budget:
+  usdPerMonth: 10

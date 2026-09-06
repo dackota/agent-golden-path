@@ -7,6 +7,9 @@ CTX="$1"; OUT="$2"
 read -r AGENT NS TEAM OWNER MODEL USD < <(python3 -c '
 import json,sys; d=json.load(open(sys.argv[1]+"/key.json"))
 print(d["agent"], d["namespace"], d["team"], d["owner"], d["model"], d["usdPerMonth"])' "$OUT")
+if kubectl --context "$CTX" -n "$NS" get secret "$AGENT-llm-key" -o jsonpath='{.data.LLM_API_KEY}' 2>/dev/null | grep -q .; then
+  echo "key already minted for $NS/$AGENT, keeping it"; exit 0
+fi
 MASTER=$(kubectl --context "$CTX" -n platform-gateway get secret litellm-secrets -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)
 kubectl --context "$CTX" -n platform-gateway port-forward svc/litellm 14000:4000 >/dev/null 2>&1 &
 PF=$!; trap 'kill $PF 2>/dev/null' EXIT; sleep 2

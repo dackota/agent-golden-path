@@ -21,6 +21,12 @@ platform:      ## install/upgrade platform-owned pieces
 	kubectl --context $(CTX) apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/v1.0.1/sandbox-with-extensions.yaml
 	kubectl --context $(CTX) apply -f platform/gateway/gateway.yaml
 	kubectl --context $(CTX) -n platform-gateway rollout status deploy/litellm --timeout=300s
+	kubectl --context $(CTX) apply --server-side --force-conflicts -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.0/standard-install.yaml
+	helm --kube-context $(CTX) upgrade -i agentgateway-crds oci://cr.agentgateway.dev/charts/agentgateway-crds --create-namespace -n agentgateway-system --version v1.5.0
+	helm --kube-context $(CTX) upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway -n agentgateway-system --version v1.5.0 --wait
+	kubectl --context $(CTX) apply -f platform/gateway/agentgateway-proxy.yaml
+	kubectl --context $(CTX) apply -f platform/gateway/tools-gateway.yaml
+	./platform/gateway/tools-jwks.sh $(CTX)
 	kubectl --context $(CTX) apply -f platform/kagent/tool-catalog-sharing.yaml
 	kubectl --context $(CTX) apply -f platform/sandbox/platform-python-template.yaml
 	kubectl --context $(CTX) label ns team-demo platform.suresteel.com/agent-namespace=true --overwrite
@@ -37,7 +43,11 @@ ifeq ($(KIND_),prompt)
 	kubectl --context $(CTX) label ns $(NS) platform.suresteel.com/agent-namespace=true --overwrite
 	kubectl --context $(CTX) wait agent/$(NAME) -n $(NS) --for=condition=Ready --timeout=180s
 else ifeq ($(KIND_),container)
+	@if [ -f out/$(NAME)/tools-policy.yaml ]; then \
+	  ./platform/gateway/mint-tool-token.sh $(CTX) out/$(NAME) && \
+	  kubectl --context $(CTX) apply -f out/$(NAME)/tools-policy.yaml; fi
 	helm --kube-context $(CTX) upgrade --install $(NAME) charts/agent-app -n $(NS) --create-namespace -f out/$(NAME)/helm-values.yaml --wait
+	kubectl --context $(CTX) -n $(NS) rollout restart deploy/$(NAME) && kubectl --context $(CTX) -n $(NS) rollout status deploy/$(NAME) --timeout=120s
 else
 	kubectl --context $(CTX) apply -f out/$(NAME)/sandbox.yaml
 	kubectl --context $(CTX) wait sandboxclaim/$(NAME) -n $(NS) --for=condition=Ready --timeout=120s
