@@ -1,4 +1,4 @@
-# PROTOTYPE. Real path: FROM the platform hardened base image (Wolfi/distroless, pinned SDKs).
+# Real path: FROM the platform hardened base image (Wolfi or distroless, pinned SDKs).
 FROM python:3.12-slim
 RUN useradd -u 10001 -m app
 WORKDIR /app

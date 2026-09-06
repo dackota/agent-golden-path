@@ -1,4 +1,4 @@
-"""PROTOTYPE 'vibe-coded' agent with tools. Stdlib only.
+"""A small example agent with tools. Stdlib only.
 
 LLM  -> LLM_BASE_URL   (OpenAI-compatible, the platform LLM gateway)
 Tools-> TOOLS_URL      (MCP streamable HTTP, the platform tool gateway)
