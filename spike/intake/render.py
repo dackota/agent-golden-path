@@ -98,6 +98,21 @@ def render_kagent(doc):
     ]
 
 
+def render_tools_policy(doc):
+    """Per-agent tool allow-list at the MCP gateway. Namespace = the Backend's."""
+    ns, labels, ann = common(doc)
+    names = sorted({n for t in doc.get("tools", []) for n in TOOL_CATALOG[t["name"]][1]})
+    if not names:
+        return None
+    allow = ", ".join(f'"{n}"' for n in names)
+    return {"apiVersion": "agentgateway.dev/v1alpha1", "kind": "AgentgatewayPolicy",
+            "metadata": {"name": f"tools-allow-{doc['team']}-{doc['name']}", "namespace": "platform-gateway",
+                         "labels": labels, "annotations": ann},
+            "spec": {"targetRefs": [{"group": "agentgateway.dev", "kind": "AgentgatewayBackend", "name": "platform-tools"}],
+                     "backend": {"mcp": {"authorization": {"action": "Allow", "policy": {"matchExpressions": [
+                         f'jwt.sub == "{ns}/{doc["name"]}" && mcp.tool.name in [{allow}]']}}}}}}
+
+
 def render_helm(doc):
     ns, labels, ann = common(doc)
     c = doc["container"]
@@ -134,6 +149,9 @@ def main():
         (out / "kagent.yaml").write_text(yaml.safe_dump_all(render_kagent(doc), sort_keys=False))
     elif doc["kind"] == "container":
         (out / "helm-values.yaml").write_text(yaml.safe_dump(render_helm(doc), sort_keys=False))
+        pol = render_tools_policy(doc)
+        if pol:
+            (out / "tools-policy.yaml").write_text(yaml.safe_dump(pol, sort_keys=False))
     else:
         (out / "sandbox.yaml").write_text(yaml.safe_dump_all(render_sandbox(doc), sort_keys=False))
     print(f"OK kind={doc['kind']} -> {out}")

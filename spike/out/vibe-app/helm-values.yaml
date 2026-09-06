@@ -1,7 +1,7 @@
 name: vibe-app
 team: demo
 owner: dackota.johnson@suresteel.com
-image: spike/vibe-app:0.1.0
+image: spike/vibe-app:0.2.0
 port: 8080
 replicas: 1
 model: default-chat

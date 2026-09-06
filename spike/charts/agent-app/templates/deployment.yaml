@@ -38,6 +38,12 @@ spec:
             - name: LLM_API_KEY
               valueFrom:
                 secretKeyRef: {name: {{ .Values.name }}-llm-key, key: LLM_API_KEY}
+            - name: TOOLS_URL
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.name }}-llm-key, key: TOOLS_URL, optional: true}
+            - name: TOOLS_TOKEN
+              valueFrom:
+                secretKeyRef: {name: {{ .Values.name }}-llm-key, key: TOOLS_TOKEN, optional: true}
             - name: AGENT_SYSTEM_PROMPT
               valueFrom:
                 configMapKeyRef: {name: {{ .Values.name }}-prompt, key: system.txt}

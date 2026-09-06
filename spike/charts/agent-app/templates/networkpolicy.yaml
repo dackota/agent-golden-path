@@ -27,6 +27,12 @@ spec:
       ports: [{port: 4000, protocol: TCP}]
     - to:
         - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: agentgateway-system}
+          podSelector:
+            matchLabels: {gateway.networking.k8s.io/gateway-name: agentgateway-proxy}
+      ports: [{port: 80, protocol: TCP}]
+    - to:
+        - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: platform-observability}
       ports: [{port: 4318, protocol: TCP}]
 {{- if .Values.extraEgressHosts }}
