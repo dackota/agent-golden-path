@@ -1,4 +1,4 @@
-# PROTOTYPE. The one agentgateway data plane. All MCP (and later LLM) traffic goes through it.
+# The one agentgateway data plane. All MCP (and later LLM) traffic goes through it.
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

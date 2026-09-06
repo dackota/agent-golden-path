@@ -1,4 +1,4 @@
-# PROTOTYPE. Platform-owned sandbox blueprint for kind=codeexec agents.
+# Platform-owned sandbox blueprint for kind=codeexec agents.
 # Devs never edit this. They file a SandboxClaim against the warm pool.
 apiVersion: v1
 kind: Namespace

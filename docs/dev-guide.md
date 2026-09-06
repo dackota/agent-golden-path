@@ -43,6 +43,11 @@ these env vars and nothing else:
 Your URL is `http://<gateway>/agents/<team>/<name>/`. The prefix is stripped
 before it reaches you.
 
+**I want my agent to hand some questions to another team's agent.**
+Add `{agent: <team>/<name>}` to your tools. The other team adds your team to
+`delegation.allowFromTeams` on their agent. Both sides must agree. See
+[examples](examples.md).
+
 **My agent runs code it generates.** `kind: codeexec`. You get an isolated
 sandbox pod from a warm pool with the same LLM env and a locked-down network.
 Set `sandbox.expires` so it cleans itself up.
@@ -59,8 +64,10 @@ Set `sandbox.expires` so it cleans itself up.
 | `model` | `default-chat` | or `default-fast`. Catalog names, never providers |
 | `budget.usdPerMonth` | 20 | 1 to 500. Hard stop at the gateway. Ask the platform for more |
 | `systemPrompt` | "" | required for `prompt` |
-| `tools[].name` | [] | `k8s-readonly`, `grafana`, `web-fetch` |
+| `tools[].name` | [] | `k8s-readonly`, `grafana`, `web-fetch`, `orders-readonly`, `orders-cancel` |
 | `tools[].approval` | false | `prompt` only. Human approves each call |
+| `tools[].agent` | | `prompt` only. `team/name` of another agent to delegate to over A2A |
+| `delegation.allowFromTeams` | [] | `prompt` only. Teams whose agents may call this one |
 | `image` | required for `container` | `ghcr.io/<org>/<repo>:<version>`. No `:latest` |
 | `port` | 8080 | |
 | `healthPath` | `/healthz` | |

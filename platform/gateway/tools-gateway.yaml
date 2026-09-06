@@ -1,4 +1,4 @@
-# PROTOTYPE. Platform-owned MCP tool gateway. agentgateway behind Gateway API.
+# Platform-owned MCP tool gateway. agentgateway behind Gateway API.
 # Container agents reach tools ONLY through here. The gateway checks a per-agent
 # JWT and a per-agent tool allow-list (CEL) before anything reaches the MCP server.
 apiVersion: agentgateway.dev/v1alpha1
@@ -9,6 +9,7 @@ metadata:
 spec:
   mcp:
     failureMode: FailClosed
+    prefixMode: Never        # keep tool names stable across targets; catalog names must not collide
     targets:
       - name: kagent-tools
         static:

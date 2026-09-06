@@ -1,4 +1,12 @@
-# PROTOTYPE. Platform-owned Argo wiring. One AppProject per team, one ApplicationSet for all teams.
+# The team namespace is platform-owned. Argo projects may not create cluster-scoped resources.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-ops
+  labels:
+    goldenpath.dev/agent-namespace: "true"
+---
+# Platform-owned Argo wiring. One AppProject per team, one ApplicationSet for all teams.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:

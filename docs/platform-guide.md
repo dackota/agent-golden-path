@@ -30,9 +30,10 @@ Ollama must be running on the host with `gemma4:12b` pulled. Pods reach it at
 
 ## Add a team
 
-1. Add an `AppProject` in `platform/argocd/` named `team-<slug>` with
-   `destinations` limited to `team-<slug>` and `sourceRepos` limited to this
-   repo. Copy `team-demo.yaml`.
+1. Copy `platform/argocd/team-ops.yaml` to `team-<slug>.yaml`. It holds the
+   `Namespace` (platform-owned, because Argo projects may not create
+   cluster-scoped resources) and the `AppProject` that limits the team to that
+   namespace and this repo.
 2. Create `deployments/agents/<slug>/` with a `CODEOWNERS` line for the team.
 3. If the team will run `codeexec` agents, apply a `SandboxTemplate` and
    `SandboxWarmPool` into `team-<slug>`. Copy `platform/sandbox/`.
@@ -48,9 +49,14 @@ model needs a new PR from the team.
 
 ## Add a tool
 
-1. Run the MCP server in the cluster. Expose it with a Service.
-2. Add a target to the `AgentgatewayBackend` in `tools-gateway.yaml`, or a
-   `RemoteMCPServer` in `kagent` for prompt agents.
+1. Run the MCP server in the cluster with a kagent `MCPServer` resource. kmcp
+   creates the Deployment and Service. `platform/tools/orders.yaml` is the
+   worked example, and `examples/orders/mcp_server.py` shows how to wrap a
+   REST API in about 90 lines with no framework.
+2. Add a `RemoteMCPServer` in `kagent` with `allowedNamespaces` for prompt
+   agents, and a target on the `AgentgatewayBackend` in `tools-gateway.yaml`
+   for container agents. Keep `prefixMode: Never` and make sure tool names do
+   not collide across servers.
 3. Add a catalog entry in `charts/agent/templates/_helpers.tpl`: the friendly
    name, the server, and the exact tool names it grants. Add the name to the
    `tools[].name` enum in the schema.

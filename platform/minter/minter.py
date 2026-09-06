@@ -1,4 +1,4 @@
-"""PROTOTYPE platform credential minter. Runs in-cluster on a schedule.
+"""Platform credential minter. Runs in-cluster on a schedule.
 
 For every agent registration ConfigMap (label goldenpath.dev/registration=true):
   1. label the namespace so kagent lets it use the shared tool servers

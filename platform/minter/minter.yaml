@@ -1,4 +1,4 @@
-# PROTOTYPE. Platform-owned. Mints per-agent credentials from chart registrations.
+# Platform-owned. Mints per-agent credentials from chart registrations.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

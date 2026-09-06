@@ -76,6 +76,11 @@ Three kinds of agent, one chart:
 | `container` | Your own HTTP app image | Deployment or CronJob behind the gateway |
 | `codeexec` | An agent that runs generated code | An isolated sandbox from a warm pool |
 
+Two worked examples show the parts that make agents a system rather than a
+pile: an internal REST API exposed as MCP tools, and a front-door agent that
+delegates to another team's specialist over A2A. See
+[docs/examples.md](docs/examples.md).
+
 Read [docs/architecture.md](docs/architecture.md) for the flows, and
 [docs/tooling.md](docs/tooling.md) for what each tool does and why it was picked.
 
@@ -90,6 +95,7 @@ Every one of these was tested. The proof is in [docs/guard-rails.md](docs/guard-
 - Non-root, read-only filesystem, no capabilities, no service account token.
 - A team can deploy only into its own namespace, only from this repo.
 - Human approval per tool for prompt agents.
+- Agents delegate to other teams' agents only with the callee's consent.
 - Delete the folder and everything goes, including the minted credentials.
 
 ## Run it yourself
@@ -117,7 +123,8 @@ curl -s -X POST localhost:8080/agents/demo/vibe-app/chat -H 'Content-Type: appli
 ```
 charts/agent/        the dev-facing chart. One kind switch. Strict schema.
 deployments/agents/  <team>/<name>/values.yaml. PR here to deploy. Argo watches it.
-platform/            platform-owned: gateways, minter, kagent, sandbox, Argo wiring
+platform/            platform-owned: gateways, minter, kagent, sandbox, tools, Argo wiring
+examples/orders/     a REST API and its MCP wrapper, the "API as tools" example
 template/            the starter app a dev copies (mirrored to agent-app-template)
 tests/               schema negative tests, run in CI
 docs/                architecture, tooling, guard rails, guides, decisions

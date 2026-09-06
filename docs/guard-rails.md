@@ -52,6 +52,7 @@ without the policy reached the model host (`200`).
 | Per-agent allow-list | vibe-app token `tools/list` | 3 of 18 tools |
 | Hidden tools unreachable | call `k8s_delete_resource` with vibe-app token | "Unknown tool" |
 | No policy means no tools | valid JWT for an agent with no tools | `tools/list` empty |
+| One gateway, many tool servers, still per-agent | vibe-app token vs orders-agent token on the same endpoint | 3 Kubernetes tools vs 3 order tools, no overlap |
 | Human approval | prompt agent with `approval: true` | task stopped in `input-required` before the tool ran |
 
 ## At kagent
@@ -60,6 +61,8 @@ without the policy reached the model host (`200`).
 |---|---|---|
 | Shared tool servers opt in per namespace | agent in unlabeled namespace | "cross-namespace reference ... is not allowed" until the platform labeled it |
 | Tool names scoped per agent | `toolNames` on the Agent | 3 read-only tools granted out of 18 |
+| Delegation needs the callee's consent | Agent in an unlisted namespace names `team-ops/orders-agent` as a tool | "cross-namespace reference to agent team-ops/orders-agent is not allowed" |
+| Writes behind approval | `orders-cancel` with `approval: true`, "Cancel order 1004" | stopped in `input-required`, order untouched |
 
 ## At Argo CD
 
@@ -67,7 +70,7 @@ without the policy reached the model host (`200`).
 |---|---|---|
 | Team deploys only to its namespace | Application in `team-demo` aimed at `kagent` | "do not match any of the allowed destinations" |
 | Team deploys only from this repo | Application from `github.com/someone-else/evil` | "is not permitted in project" |
-| No cluster-scoped resources | `clusterResourceWhitelist: []` | not exercised, declared |
+| No cluster-scoped resources | `clusterResourceWhitelist: []`, Argo tried to create namespace `team-ops` | "resource :Namespace is not permitted in project team-ops". Namespaces are platform-owned |
 | Removal is complete | deleted an agent folder | CronJob, ConfigMaps, and minted Secret gone |
 
 ## In CI

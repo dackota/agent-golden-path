@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PROTOTYPE. One-time: create the platform signing key and install the JWT
+# One-time: create the platform signing key and install the JWT
 # policy on the tools route. Real path: use the org IdP (Entra) as issuer.
 # Usage: tools-jwks.sh <kube-context>
 set -euo pipefail

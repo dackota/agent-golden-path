@@ -1,4 +1,4 @@
-# PROTOTYPE. Central LLM gateway. Platform-owned. Installed once.
+# Central LLM gateway. Platform-owned. Installed once.
 # Holds the real model credentials. Mints one virtual key per agent with a budget.
 apiVersion: v1
 kind: Namespace
