@@ -1,0 +1,7 @@
+name: data-cruncher
+team: demo
+owner: dackota.johnson@suresteel.com
+description: Runs generated Python over CSV files in an isolated sandbox.
+kind: codeexec
+sandbox:
+  expires: "2026-09-30T00:00:00Z"

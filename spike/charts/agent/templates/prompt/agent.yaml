@@ -1,0 +1,46 @@
+{{- if eq .Values.kind "prompt" }}
+{{- $cat := include "agent.catalog" . | fromJson }}
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: {{ .Values.name }}-model
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  provider: OpenAI
+  model: {{ .Values.model }}
+  apiKeySecret: {{ include "agent.credentialsSecret" . }}
+  apiKeySecretKey: LLM_API_KEY
+  openAI:
+    baseUrl: {{ include "agent.gatewayUrl" . }}
+---
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+  annotations: {{- include "agent.annotations" . | nindent 4 }}
+spec:
+  type: Declarative
+  description: {{ .Values.description | quote }}
+  declarative:
+    modelConfig: {{ .Values.name }}-model
+    systemMessage: {{ .Values.systemPrompt | quote }}
+    deployment:
+      resources: {{- include "agent.resources" . | nindent 8 }}
+    tools:
+      {{- range .Values.tools }}
+      {{- $entry := index $cat .name }}
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: RemoteMCPServer
+          name: {{ $entry.server }}
+          namespace: kagent
+          {{- with $entry.tools }}
+          toolNames: {{ toJson . }}
+          {{- end }}
+          {{- if and .approval $entry.tools }}
+          requireApproval: {{ toJson $entry.tools }}
+          {{- end }}
+      {{- end }}
+{{- end }}

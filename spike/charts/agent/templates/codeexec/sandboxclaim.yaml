@@ -1,0 +1,17 @@
+{{- if eq .Values.kind "codeexec" }}
+# Claims a pre-warmed, isolated sandbox from the platform pool.
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxClaim
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+  annotations: {{- include "agent.annotations" . | nindent 4 }}
+spec:
+  warmPoolRef:
+    name: platform-python-pool
+  lifecycle:
+    shutdownPolicy: Delete
+    {{- with .Values.sandbox.expires }}
+    shutdownTime: {{ . | quote }}
+    {{- end }}
+{{- end }}

@@ -26,7 +26,60 @@ checks a per-agent JWT and a per-agent CEL tool allow-list. An agent never
 holds a model key or a tool credential of its own. Each agent gets its own key with a budget and a model
 allow-list. No agent pod can reach a model any other way.
 
-## How the self-service path works
+## The GitOps path (the current answer)
+
+The first pass used a renderer script and `make deploy`. That is now replaced
+by one Helm chart and Argo CD. This is how a dev ships an agent today:
+
+1. Copy a folder in [agent-deployments](https://github.com/dackota/agent-deployments)
+   under `agents/<team>/<name>/` and edit `values.yaml`. Five to ten lines is
+   normal. Every option and default is documented in `charts/agent/values.yaml`.
+2. Open a PR. CI renders the values against the chart schema. Bad values fail
+   there. CODEOWNERS keeps the chart and the Argo wiring platform-owned.
+3. Merge. An Argo `ApplicationSet` turns each folder into an Application in
+   project `team-<team>`, which may only deploy into namespace `team-<team>`
+   from that one repo. Argo syncs, prunes, and self-heals.
+4. The chart renders a small registration ConfigMap. A platform minter CronJob
+   reads it and creates the agent's credentials Secret (LLM key with budget,
+   tool JWT) and its tool allow-list policy. Pods wait for the Secret, then
+   start. Delete the folder and the minter removes the Secret and the policy.
+
+The chart has one `kind` switch and bundles only what one agent needs:
+
+| `kind` | Renders |
+|---|---|
+| `container` | Deployment or CronJob (`schedule` set), Service, HTTPRoute at `/agents/<team>/<name>/`, HPA, PDB when replicas > 1, PVC when `persistence.enabled`, NetworkPolicy, ServiceAccount, prompt ConfigMap |
+| `prompt` | kagent `Agent` and `ModelConfig` pointed at the LLM gateway, tools from the catalog, `approval: true` per tool |
+| `codeexec` | `SandboxClaim` against the platform warm pool, optional `expires` |
+
+Platform pieces stay out of the chart: gateways, JWKS, warm pool templates,
+kagent install, tool servers, the minter, Argo projects.
+
+Proven on this cluster with Argo CD v3.2.0:
+
+| Check | Result |
+|---|---|
+| Four folders pushed | Four Applications created, all Synced and Healthy |
+| Minter | Four Secrets and two tool policies created within one minute, no dev action |
+| Prompt change committed | New pod rolled, reply changed |
+| Folder deleted | CronJob, ConfigMaps, and the minted Secret all gone |
+| App aimed at namespace `kagent` | Argo: "do not match any of the allowed destinations in project team-demo" |
+| App from a foreign repo | Argo: "is not permitted in project team-demo" |
+| Ten bad values files | All rejected by the schema. `:latest`, foreign registry, `privileged`, budget 9999, replicas 50, `env.LLM_API_KEY`, unknown tool, bad model, container without image, prompt without systemPrompt |
+| Chart at the wrong path | Deployments repo CI failed on the first push, then passed |
+| kagent agent with `approval: true` | Task stopped in `input-required` before the tool ran |
+| Container agent through its gateway URL | Answered with a tool call |
+
+Two lessons. Helm's schema engine is Go regex, so no lookaheads. Use `not`
+with a pattern. And anything rendered from `now` makes Argo permanently
+OutOfSync, so the sandbox expiry is an explicit timestamp.
+
+## How the first pass worked (superseded)
+
+`intake/render.py` and `make deploy` still run, but the chart and Argo above
+replace them. Kept for reference.
+
+### The first pass, step by step
 
 1. The dev clicks "Use this template" on
    [agent-app-template](https://github.com/dackota/agent-app-template), adds
@@ -117,6 +170,9 @@ visibility.
 - Tool JWTs come from a platform RSA key in `platform/gateway/.keys/`. Real
   path: the org IdP (Entra) is the issuer and agentgateway reads its JWKS.
 - Tool JWT rotation. Tokens live 30 days in a Secret. Nothing rotates them.
+- Minter RBAC reads and writes Secrets cluster-wide. Real path: one Role per team namespace.
+- Minter runs every minute as a CronJob. A controller with a watch would react in seconds.
+- Argo pulls from public repos with no credentials. Private repos need a repo Secret.
 - LLM traffic still goes to LiteLLM directly. It could also route through
   agentgateway so one data plane sees everything.
 - kagent human approval flow.
@@ -167,9 +223,10 @@ curl -s -X POST http://127.0.0.1:18080/chat -H 'Content-Type: application/json' 
 ## Layout
 
 ```
-intake/       agent.yaml contract, schema, renderer, examples   (dev-facing)
-platform/     LLM gateway, tool gateway, kagent tool sharing, sandbox template   (platform-owned)
-charts/       agent-app universal chart                          (platform-owned)
+charts/agent/     the dev chart. Same content as agent-deployments/charts/agent   (platform-owned)
+charts/agent-app/ first-pass chart, superseded
+platform/         LLM gateway, tool gateway, minter, Argo wiring, kagent tool sharing, sandbox template
+intake/           first-pass contract and renderer, superseded
 sample-app/   a stdlib Python "vibe-coded" agent                 (stand-in for a dev's app)
 out/          rendered manifests, one dir per agent              (generated)
 ```
@@ -184,3 +241,4 @@ gemma4:12b.
 
 - [agent-app-template](https://github.com/dackota/agent-app-template): public template a dev copies.
 - [agent-golden-path-workflows](https://github.com/dackota/agent-golden-path-workflows): public shared build workflow.
+- [agent-deployments](https://github.com/dackota/agent-deployments): public GitOps repo. PR here to deploy.

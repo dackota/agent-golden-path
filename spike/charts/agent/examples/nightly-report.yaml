@@ -1,0 +1,12 @@
+name: nightly-report
+team: demo
+owner: dackota.johnson@suresteel.com
+description: Summarizes yesterday's incidents every weekday morning.
+kind: container
+image: ghcr.io/dackota/agent-app-template:0.2.0
+schedule: "0 7 * * 1-5"
+size: medium
+expose:
+  enabled: false
+autoscaling:
+  enabled: false

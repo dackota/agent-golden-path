@@ -1,0 +1,9 @@
+{{ .Values.name }} ({{ .Values.kind }}) for team {{ .Values.team }}.
+{{- if eq .Values.kind "container" }}
+{{- if .Values.expose.enabled }}
+URL:   http://<platform-gateway>/agents/{{ .Values.team }}/{{ .Values.name }}/
+{{- end }}
+Env:   LLM_BASE_URL LLM_MODEL LLM_API_KEY{{ if .Values.tools }} TOOLS_URL TOOLS_TOKEN{{ end }} AGENT_SYSTEM_PROMPT OTEL_*
+{{- end }}
+Creds: Secret {{ include "agent.credentialsSecret" . }} appears within a minute. Pods wait for it.
+Tools: {{ include "agent.toolNames" . }}

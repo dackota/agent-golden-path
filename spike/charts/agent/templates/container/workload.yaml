@@ -1,0 +1,211 @@
+{{- if eq .Values.kind "container" }}
+{{- $hasSchedule := ne .Values.schedule "" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-prompt
+  labels: {{- include "agent.labels" . | nindent 4 }}
+data:
+  system.txt: {{ .Values.systemPrompt | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+  annotations:
+    platform.suresteel.com/workload-identity: "todo"   # cloud IAM binding goes here
+automountServiceAccountToken: false
+---
+{{- if $hasSchedule }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+  annotations: {{- include "agent.annotations" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels: {{- include "agent.labels" . | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ .Values.name }}
+          securityContext: {{- include "agent.podSecurity" . | nindent 12 }}
+          containers:
+            - name: agent
+              image: {{ .Values.image }}
+              {{- with .Values.command }}
+              command: {{ toJson . }}
+              {{- end }}
+              {{- with .Values.args }}
+              args: {{ toJson . }}
+              {{- end }}
+              env: {{- include "agent.env" . | nindent 16 }}
+              {{- with .Values.envFrom }}
+              envFrom:
+                {{- range . }}
+                - secretRef: {name: {{ . }}}
+                {{- end }}
+              {{- end }}
+              securityContext: {{- include "agent.containerSecurity" . | nindent 16 }}
+              resources: {{- include "agent.resources" . | nindent 16 }}
+              volumeMounts:
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: tmp
+              emptyDir: {sizeLimit: 512Mi}
+{{- else }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+  annotations: {{- include "agent.annotations" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicas }}
+  {{- end }}
+  {{- if .Values.persistence.enabled }}
+  strategy: {type: Recreate}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.name }}
+  template:
+    metadata:
+      labels: {{- include "agent.labels" . | nindent 8 }}
+      annotations:
+        checksum/prompt: {{ .Values.systemPrompt | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.name }}
+      securityContext: {{- include "agent.podSecurity" . | nindent 8 }}
+      containers:
+        - name: agent
+          image: {{ .Values.image }}
+          {{- with .Values.command }}
+          command: {{ toJson . }}
+          {{- end }}
+          {{- with .Values.args }}
+          args: {{ toJson . }}
+          {{- end }}
+          ports:
+            - {name: http, containerPort: {{ .Values.port }}}
+          env: {{- include "agent.env" . | nindent 12 }}
+          {{- with .Values.envFrom }}
+          envFrom:
+            {{- range . }}
+            - secretRef: {name: {{ . }}}
+            {{- end }}
+          {{- end }}
+          securityContext: {{- include "agent.containerSecurity" . | nindent 12 }}
+          resources: {{- include "agent.resources" . | nindent 12 }}
+          readinessProbe:
+            httpGet: {path: {{ .Values.healthPath }}, port: http}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: {{ .Values.healthPath }}, port: http}
+            periodSeconds: 15
+            failureThreshold: 4
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            {{- if .Values.persistence.enabled }}
+            - {name: data, mountPath: /data}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 512Mi}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim: {claimName: {{ .Values.name }}-data}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.name }}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+{{- if .Values.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: {{ .Values.name }}}
+  minReplicas: {{ .Values.replicas }}
+  maxReplicas: {{ max .Values.replicas .Values.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource: {name: cpu, target: {type: Utilization, averageUtilization: {{ .Values.autoscaling.targetCPU }}}}
+{{- end }}
+{{- if gt (int .Values.replicas) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.name }}
+{{- end }}
+{{- if .Values.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.name }}-data
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}
+{{- if .Values.expose.enabled }}
+---
+# URL: http://<platform-gateway>/agents/<team>/<name>/  (prefix is stripped before your app)
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.name }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: agentgateway-proxy
+      namespace: agentgateway-system
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /agents/{{ .Values.team }}/{{ .Values.name }}}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: {type: ReplacePrefixMatch, replacePrefixMatch: /}
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: {{ .Values.name }}
+          port: 80
+          weight: 1
+{{- end }}
+{{- end }}
+{{- end }}

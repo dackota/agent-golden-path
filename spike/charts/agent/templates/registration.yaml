@@ -1,0 +1,16 @@
+# Every agent registers itself. The platform minter reads this and creates the
+# agent's credentials Secret, tool token, and tool allow-list. Devs never do.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-agent
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+    platform.suresteel.com/registration: "true"
+  annotations: {{- include "agent.annotations" . | nindent 4 }}
+data:
+  registration.json: |
+    {{ dict "name" .Values.name "team" .Values.team "owner" .Values.owner "kind" .Values.kind
+            "model" .Values.model "usdPerMonth" .Values.budget.usdPerMonth
+            "toolNames" (include "agent.toolNames" . | fromJsonArray)
+            "approvalTools" (list) | toJson }}

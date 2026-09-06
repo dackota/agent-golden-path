@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# agent chart values. This file IS the contract. Fill in what you need.
+# Anything not listed here is decided by the platform and is not a knob.
+# ---------------------------------------------------------------------------
+
+# Required. Who and what.
+name: ""                 # lowercase, letters digits dashes, 3-30 chars
+team: ""                 # your team slug. Deploys into namespace team-<team>
+owner: ""                # your email
+description: ""          # one line. Shows in the agent catalog
+
+# What kind of agent is this?
+#   prompt    = a system prompt plus tools, no code. The platform runs it (kagent).
+#   container = your own HTTP app image. Read LLM_* and TOOLS_* env vars.
+#   codeexec  = an isolated sandbox for an agent that runs generated code.
+kind: container
+
+# Model and budget. Models are names from the platform catalog, never providers.
+model: default-chat      # default-chat | default-fast
+budget:
+  usdPerMonth: 20        # 1..500. Hard stop at the LLM gateway.
+
+# Prompt and tools. Used by kind=prompt. Passed to kind=container as env.
+systemPrompt: ""
+tools: []                # e.g. [{name: k8s-readonly}, {name: grafana, approval: true}]
+
+# --- kind: container ---------------------------------------------------------
+image: ""                # ghcr.io/<org>/<repo>:<version>. No :latest.
+port: 8080
+healthPath: /healthz     # must return 200
+command: []              # override image ENTRYPOINT (rare)
+args: []                 # override image CMD (rare)
+env: {}                  # plain KEY: value pairs. Not for secrets.
+envFrom: []              # names of Secrets you own in your namespace
+size: small              # small (0.25 cpu/256Mi) | medium (1 cpu/1Gi) | large (2 cpu/4Gi)
+replicas: 1
+autoscaling:
+  enabled: true
+  maxReplicas: 3
+  targetCPU: 70
+persistence:
+  enabled: false         # true = a disk at /data that survives restarts
+  size: 5Gi
+expose:
+  enabled: true          # true = reachable at http://<platform-gateway>/agents/<team>/<name>/
+schedule: ""             # cron, e.g. "0 7 * * 1-5". Set = run as a CronJob, not a service
+egress: []               # extra hostnames your app must reach. Needs platform approval.
+
+# --- kind: codeexec ----------------------------------------------------------
+sandbox:
+  expires: ""            # optional RFC3339 time, e.g. "2026-09-30T00:00:00Z". Sandbox is deleted then.
