@@ -1,0 +1,11 @@
+name: vibe-app
+team: demo
+owner: dackota.j@gmail.com
+description: A vibe-coded chat app that calls an LLM and one read-only tool.
+kind: container
+image: ghcr.io/dackota/agent-app-template:0.2.0
+systemPrompt: You are a friendly helper. Keep answers under 30 words.
+tools:
+  - name: k8s-readonly
+budget:
+  usdPerMonth: 10

@@ -1,0 +1,79 @@
+# PROTOTYPE. Platform-owned. Mints per-agent credentials from chart registrations.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-minter
+  namespace: platform-gateway
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-minter
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, create, delete]    # PoC: real path scopes this to team namespaces
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-minter
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: agent-minter}
+subjects: [{kind: ServiceAccount, name: agent-minter, namespace: platform-gateway}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-minter-policies
+  namespace: platform-gateway
+rules:
+  - apiGroups: [agentgateway.dev]
+    resources: [agentgatewaypolicies]
+    verbs: [get, list, create, update, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-minter-policies
+  namespace: platform-gateway
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: agent-minter-policies}
+subjects: [{kind: ServiceAccount, name: agent-minter, namespace: platform-gateway}]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: agent-minter
+  namespace: platform-gateway
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 50
+      template:
+        spec:
+          serviceAccountName: agent-minter
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: minter
+              image: ghcr.io/dackota/agent-minter:0.1.1
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: LITELLM_MASTER_KEY
+                  valueFrom: {secretKeyRef: {name: litellm-secrets, key: LITELLM_MASTER_KEY}}
+              volumeMounts: [{name: signing-key, mountPath: /keys, readOnly: true}]
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 256Mi}}
+          volumes:
+            - name: signing-key
+              secret: {secretName: platform-tools-signing-key}

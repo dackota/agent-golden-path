@@ -1,0 +1,62 @@
+# PROTOTYPE. Platform-owned Argo wiring. One AppProject per team, one ApplicationSet for all teams.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: team-demo
+  namespace: argocd
+spec:
+  description: Agents owned by team demo
+  sourceRepos:
+    - https://github.com/dackota/agent-golden-path.git
+  destinations:
+    - namespace: team-demo
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist: []          # no cluster-scoped resources, ever
+  namespaceResourceBlacklist:
+    - {group: "", kind: ResourceQuota}
+    - {group: "", kind: LimitRange}
+    - {group: rbac.authorization.k8s.io, kind: Role}
+    - {group: rbac.authorization.k8s.io, kind: RoleBinding}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: agents
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: [missingkey=error]
+  generators:
+    - git:
+        repoURL: https://github.com/dackota/agent-golden-path.git
+        revision: main
+        directories:
+          - path: deployments/agents/*/*
+  template:
+    metadata:
+      name: 'agent-{{ index .path.segments 1 }}-{{ .path.basename }}'
+      labels:
+        goldenpath.dev/team: '{{ index .path.segments 1 }}'
+    spec:
+      project: 'team-{{ index .path.segments 1 }}'
+      sources:
+        - repoURL: https://github.com/dackota/agent-golden-path.git
+          targetRevision: main
+          path: charts/agent
+          helm:
+            releaseName: '{{ .path.basename }}'
+            valueFiles:
+              - '$values/{{ .path.path }}/values.yaml'
+        - repoURL: https://github.com/dackota/agent-golden-path.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'team-{{ index .path.segments 1 }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true

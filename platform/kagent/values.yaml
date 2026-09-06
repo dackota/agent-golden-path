@@ -1,0 +1,9 @@
+# kagent Helm values for the local platform. Ollama on the host is the default model.
+# Real clusters: point providers.default at the LLM gateway instead (OpenAI-compatible).
+providers:
+  default: ollama
+  ollama:
+    provider: Ollama
+    model: gemma4:12b
+    config:
+      host: host.docker.internal:11434

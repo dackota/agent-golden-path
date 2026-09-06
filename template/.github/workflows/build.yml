@@ -1,0 +1,12 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    uses: dackota/agent-golden-path/.github/workflows/build-agent.yml@main
+    permissions:
+      contents: read
+      packages: write
+      id-token: write

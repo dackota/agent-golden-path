@@ -1,0 +1,33 @@
+# Runs on every PR. Renders every agent against the chart schema and runs the
+# chart's negative tests. A bad values.yaml fails here, before Argo ever sees it.
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint chart
+        run: helm lint charts/agent -f deployments/agents/demo/vibe-app/values.yaml
+      - name: Render every deployed agent
+        run: |
+          set -e
+          for v in deployments/agents/*/*/values.yaml; do
+            echo "== $v"
+            helm template "$(basename "$(dirname "$v")")" charts/agent -f "$v" > /dev/null
+          done
+      - name: Schema negative tests
+        run: tests/schema-tests.sh
+  platform-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: YAML parses and minter compiles
+        run: |
+          pip install pyyaml >/dev/null
+          python3 -c "import yaml,glob; [list(yaml.safe_load_all(open(f))) for f in glob.glob('platform/**/*.yaml', recursive=True)]"
+          python3 -m py_compile platform/minter/minter.py
