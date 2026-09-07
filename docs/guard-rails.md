@@ -71,7 +71,7 @@ without the policy reached the model host (`200`).
 | Team deploys only to its namespace | Application in `team-demo` aimed at `kagent` | "do not match any of the allowed destinations" |
 | Team deploys only from this repo | Application from `github.com/someone-else/evil` | "is not permitted in project" |
 | No cluster-scoped resources | `clusterResourceWhitelist: []`, Argo tried to create namespace `team-ops` | "resource :Namespace is not permitted in project team-ops". Namespaces are platform-owned |
-| Removal is complete | deleted an agent folder | CronJob, ConfigMaps, and minted Secret gone |
+| Removal is complete | deleted an agent folder | CronJob, ConfigMaps, and minted Secret gone. The minter also deletes the gateway policy and the model key, so no budget survives the agent |
 
 ## In CI
 
