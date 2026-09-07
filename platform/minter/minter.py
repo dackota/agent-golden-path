@@ -2,10 +2,11 @@
 
 For every agent registration ConfigMap (label goldenpath.dev/registration=true):
   1. label the namespace so kagent lets it use the shared tool servers
-  2. mint an LLM gateway key with the agent's budget (LiteLLM /key/generate)
-  3. mint a tool JWT (RS256, platform key) when the agent has tools
-  4. write both into Secret <name>-platform-credentials in the agent's namespace
-  5. write the agent's tool allow-list policy at the tool gateway
+  2. make sure the team exists at the LLM gateway with its monthly cap
+  3. mint an LLM gateway key inside that team, with the agent's own budget
+  4. mint a tool JWT (RS256, platform key) when the agent has tools
+  5. write both into Secret <name>-platform-credentials in the agent's namespace
+  6. write the agent's tool allow-list policy at the tool gateway
 Then garbage-collect the Secrets, policies, and model keys whose
 registration is gone.
 Stdlib only. Talks to the Kubernetes API with the pod's ServiceAccount.
@@ -32,6 +33,7 @@ SIGNING_KEY = os.environ.get("SIGNING_KEY_PATH", "/keys/platform.pem")
 GATEWAY_NS = os.environ.get("GATEWAY_NS", "platform-gateway")
 TOOLS_URL = "http://agentgateway-proxy.agentgateway-system.svc.cluster.local/mcp/platform-tools"
 LABEL = "goldenpath.dev/registration=true"
+BUDGETS_CM = os.environ.get("TEAM_BUDGETS_CONFIGMAP", "team-budgets")
 MINTED = {"goldenpath.dev/minted": "true"}
 
 
@@ -41,6 +43,15 @@ def k8s(method, path, body=None):
                                           "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, context=CTX, timeout=30) as r:
+            return r.status, json.load(r)
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
+
+
+def litellm_get(path):
+    req = urllib.request.Request(LITELLM + path, headers={"Authorization": f"Bearer {MASTER}"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
             return r.status, json.load(r)
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read() or b"{}")
@@ -70,10 +81,72 @@ def mint_jwt(sub, days=30):
     return f"{header}.{payload}.{b64url(sig)}"
 
 
-def mint_llm_key(reg, ns):
+def parse_team_budgets(data):
+    """ConfigMap data to {team: dollars per month}. Raises on anything unusable.
+
+    Platform config, so a typo must stop the run. A team that silently loses its
+    cap is the failure this whole change exists to prevent.
+    """
+    budgets = {}
+    for team, raw in data.items():
+        try:
+            cap = float(str(raw).strip())
+        except ValueError:
+            raise ValueError(f"team budget for {team!r} is not a number: {raw!r}")
+        if cap <= 0:
+            raise ValueError(f"team budget for {team!r} must be above zero, got {cap}")
+        budgets[team] = cap
+    return budgets
+
+
+def require_team_budget(team, budgets):
+    if team not in budgets:
+        raise RuntimeError(f"team {team!r} has no budget in ConfigMap {BUDGETS_CM}")
+    return budgets[team]
+
+
+def team_action(existing, wanted):
+    """create, update, or unchanged. `existing` is the team's info, or None."""
+    if existing is None:
+        return "create"
+    return "unchanged" if existing.get("max_budget") == wanted else "update"
+
+
+def team_id_for(team):
+    return f"team-{team}"
+
+
+def ensure_team(team, cap):
+    """Make the gateway hold this team with this cap. Every agent key hangs off it."""
+    tid = team_id_for(team)
+    code, info = litellm_get(f"/team/info?team_id={tid}")
+    existing = (info.get("team_info") or info) if code == 200 else None
+    action = team_action(existing, cap)
+    if action == "create":
+        code, res = litellm("/team/new", {"team_id": tid, "team_alias": tid,
+                                          "max_budget": cap, "budget_duration": "30d"})
+    elif action == "update":
+        code, res = litellm("/team/update", {"team_id": tid, "max_budget": cap,
+                                             "budget_duration": "30d"})
+    else:
+        return tid, "unchanged"
+    if code != 200:
+        raise RuntimeError(f"team {action} {code}: {res}")
+    return tid, action
+
+
+def read_team_budgets():
+    code, cm = k8s("GET", f"/api/v1/namespaces/{GATEWAY_NS}/configmaps/{BUDGETS_CM}")
+    if code != 200:
+        sys.exit(f"read {GATEWAY_NS}/{BUDGETS_CM}: {code} {cm}")
+    return parse_team_budgets(cm.get("data") or {})
+
+
+def mint_llm_key(reg, ns, team_id):
     alias = f"{ns}/{reg['name']}"
-    body = {"key_alias": alias, "models": [reg["model"]], "max_budget": reg["usdPerMonth"],
-            "budget_duration": "30d", "rpm_limit": 60, "tpm_limit": 200000,
+    body = {"key_alias": alias, "team_id": team_id, "models": [reg["model"]],
+            "max_budget": reg["usdPerMonth"], "budget_duration": "30d",
+            "rpm_limit": 60, "tpm_limit": 200000,
             "metadata": {"team": reg["team"], "owner": reg["owner"], "agent": reg["name"]}}
     code, res = litellm("/key/generate", body)
     if code == 400 and "alias" in json.dumps(res).lower():   # stale alias from a lost Secret
@@ -84,12 +157,12 @@ def mint_llm_key(reg, ns):
     return res["key"]
 
 
-def ensure_secret(reg, ns):
+def ensure_secret(reg, ns, team_id):
     name = f"{reg['name']}-platform-credentials"
     code, _ = k8s("GET", f"/api/v1/namespaces/{ns}/secrets/{name}")
     if code == 200:
         return "exists"
-    data = {"LLM_API_KEY": mint_llm_key(reg, ns), "LLM_BASE_URL": LITELLM, "LLM_MODEL": reg["model"]}
+    data = {"LLM_API_KEY": mint_llm_key(reg, ns, team_id), "LLM_BASE_URL": LITELLM, "LLM_MODEL": reg["model"]}
     if reg["toolNames"]:
         data["TOOLS_TOKEN"] = mint_jwt(f"{ns}/{reg['name']}")
         data["TOOLS_URL"] = TOOLS_URL
@@ -192,6 +265,7 @@ def require_config():
 
 def main():
     require_config()
+    budgets = read_team_budgets()
     code, cms = k8s("GET", f"/api/v1/configmaps?labelSelector={LABEL}")
     if code != 200:
         sys.exit(f"list configmaps: {code} {cms}")
@@ -206,9 +280,10 @@ def main():
         live.add((ns, reg["name"]))
         try:
             ensure_ns_label(ns)
-            s = ensure_secret(reg, ns)
+            tid, t = ensure_team(reg["team"], require_team_budget(reg["team"], budgets))
+            s = ensure_secret(reg, ns, tid)
             p = ensure_policy(reg, ns)
-            print(f"{ns}/{reg['name']}: secret={s} policy={p} tools={reg['toolNames']}")
+            print(f"{ns}/{reg['name']}: team={t} secret={s} policy={p} tools={reg['toolNames']}")
         except Exception as e:  # keep going for the other agents; surface in logs
             print(f"{ns}/{reg['name']}: ERROR {e}")
     gc(live)

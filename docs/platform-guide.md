@@ -34,11 +34,39 @@ Ollama must be running on the host with `gemma4:12b` pulled. Pods reach it at
    `Namespace` (platform-owned, because Argo projects may not create
    cluster-scoped resources) and the `AppProject` that limits the team to that
    namespace and this repo.
-2. Create `deployments/agents/<slug>/` with a `CODEOWNERS` line for the team.
-3. If the team will run `codeexec` agents, apply a `SandboxTemplate` and
+2. Add the team and its monthly dollar cap to
+   `platform/budgets/team-budgets.yaml`. Without an entry the minter refuses to
+   mint keys for that team, so this step is not optional.
+3. Create `deployments/agents/<slug>/` with a `CODEOWNERS` line for the team.
+4. If the team will run `codeexec` agents, apply a `SandboxTemplate` and
    `SandboxWarmPool` into `team-<slug>`. Copy `platform/sandbox/`.
 
 The minter labels the namespace for kagent tool sharing on its own.
+
+## Change a team's budget
+
+Edit `platform/budgets/team-budgets.yaml` and apply. The minter reconciles the
+cap at the gateway on its next run, within a minute. Lowering a cap below what
+the team already spent this period stops its agents at once, so lower it with
+the team, not at them.
+
+Per-agent caps in `values.yaml` sit under the team cap. They do not need to sum
+to it, and the team cap wins when they exceed it.
+
+## Move existing agents into their team
+
+An agent minted before team budgets has a key with no team, so the team cap
+does not cover it. The minter only mints when the credentials Secret is absent,
+so delete the Secret and it re-mints inside the team within a minute.
+
+```
+kubectl --context <ctx> -n team-<slug> delete secret <agent>-platform-credentials
+kubectl --context <ctx> -n team-<slug> rollout restart deploy/<agent>
+```
+
+The restart is not optional. Re-minting replaces the key at the gateway, and a
+running pod keeps the old one in its environment until it restarts. Do one
+agent at a time.
 
 ## Add a model
 

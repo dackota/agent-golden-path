@@ -89,3 +89,54 @@ class GcPlanRejectsMalformedInput(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ParseTeamBudgets(unittest.TestCase):
+    """The budget map is platform config. Bad input must stop the run, not pass through."""
+
+    def test_reads_a_dollar_cap_per_team(self):
+        self.assertEqual(minter.parse_team_budgets({"demo": "200", "ops": "300.50"}),
+                         {"demo": 200.0, "ops": 300.5})
+
+    def test_ignores_surrounding_whitespace(self):
+        self.assertEqual(minter.parse_team_budgets({"demo": " 200 \n"}), {"demo": 200.0})
+
+    def test_no_teams_configured_is_an_empty_map(self):
+        self.assertEqual(minter.parse_team_budgets({}), {})
+
+    def test_rejects_a_cap_that_is_not_a_number(self):
+        with self.assertRaises(ValueError) as e:
+            minter.parse_team_budgets({"demo": "lots"})
+        self.assertIn("demo", str(e.exception))
+
+    def test_rejects_a_cap_of_zero_or_less(self):
+        for bad in ("0", "-5"):
+            with self.subTest(cap=bad), self.assertRaises(ValueError):
+                minter.parse_team_budgets({"demo": bad})
+
+
+class RequireTeamBudget(unittest.TestCase):
+    """An uncapped team is the defect this closes. Minting into one must fail."""
+
+    def test_returns_the_cap_for_a_configured_team(self):
+        self.assertEqual(minter.require_team_budget("demo", {"demo": 200.0}), 200.0)
+
+    def test_refuses_a_team_with_no_cap(self):
+        with self.assertRaises(RuntimeError) as e:
+            minter.require_team_budget("rogue", {"demo": 200.0})
+        self.assertIn("rogue", str(e.exception))
+
+
+class TeamAction(unittest.TestCase):
+
+    def test_creates_a_team_that_does_not_exist(self):
+        self.assertEqual(minter.team_action(None, 200.0), "create")
+
+    def test_leaves_a_team_whose_cap_already_matches(self):
+        self.assertEqual(minter.team_action({"max_budget": 200.0}, 200.0), "unchanged")
+
+    def test_updates_a_team_whose_cap_changed(self):
+        self.assertEqual(minter.team_action({"max_budget": 200.0}, 300.0), "update")
+
+    def test_updates_a_team_that_has_no_cap_at_all(self):
+        self.assertEqual(minter.team_action({"max_budget": None}, 200.0), "update")

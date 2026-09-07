@@ -43,6 +43,8 @@ without the policy reached the model host (`200`).
 | Key bound to one model | key for `default-chat` asks for `default-fast` | "key not allowed to access model" |
 | Hard budget | key with $0.0001, two calls | second call "Budget has been exceeded" |
 | Spend attributed | `/key/info` after one agent call | `spend: 0.0074` on that agent's key |
+| Team cap binds under a generous key | team capped at $1e-7, key inside it capped at $100, two calls | second call 429 "Budget has been exceeded! Team=..." |
+| A team with no cap gets no keys | registration for a team missing from `team-budgets` | minter refuses: "team 'rogue' has no budget in ConfigMap team-budgets" |
 
 ## At the tool gateway
 

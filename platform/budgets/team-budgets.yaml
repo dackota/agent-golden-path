@@ -1,0 +1,17 @@
+# What each team may spend on models per month, in US dollars.
+#
+# Platform-owned. A team cannot raise its own cap, because this file is not in
+# deployments/ and no AppProject can reach it. The minter reads it, holds a
+# LiteLLM team at this cap, and mints every agent key inside that team. Per-agent
+# caps in values.yaml sit under this one and never sum past it.
+#
+# A team with no entry here gets no keys. That is on purpose. An uncapped team is
+# the thing this file exists to prevent.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: team-budgets
+  namespace: platform-gateway
+data:
+  demo: "200"
+  ops: "300"
