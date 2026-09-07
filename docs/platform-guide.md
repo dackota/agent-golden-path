@@ -91,6 +91,29 @@ model needs a new PR from the team.
 
 Prefer read-only tool sets. Put anything that writes behind `approval: true`.
 
+## Give a tool's API a credential
+
+The gateway holds it. Nothing on the agent side does.
+
+1. Put the credential in a Secret in `platform-gateway`. No team can read that
+   namespace. Never commit the value: `tests/test_platform_config.py` fails the
+   build if you do.
+2. Add an `AgentgatewayBackend` with `spec.static` for the API host and
+   `spec.policies.auth.secretRef` for the Secret. Use `auth.location.header` to
+   choose the header name. Leave it out and the value goes to `Authorization`
+   with a `Bearer ` prefix.
+3. Add an `HTTPRoute` with a `URLRewrite` filter so the path the caller uses is
+   stripped before the API sees it.
+4. Point the MCP wrapper at that route instead of the API.
+
+`platform/gateway/orders-api.yaml` is the worked example. `auth` also does AWS,
+Azure, GCP, a signed JWT per request, and OAuth token exchange, so an agent can
+present its own identity rather than a shared key. Never use `auth.key`, which
+is an inline literal.
+
+On a real cluster External Secrets Operator syncs these Secrets from a vault and
+rotates them. `orders-credential.sh` exists only because a laptop has no vault.
+
 ## Rotate the tool signing key
 
 Run `platform/gateway/tools-jwks.sh` with a fresh key in
