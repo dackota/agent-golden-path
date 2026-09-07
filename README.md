@@ -12,6 +12,9 @@ This repo is the whole thing: the platform install, the dev-facing Helm chart,
 the GitOps wiring, the credential minter, the CI, and the docs. It runs end to
 end on a laptop with `kind` and a local model.
 
+**New here?** [SPIKE.md](SPIKE.md) maps every concern to the part that
+answers it and the test that proves it, on one page.
+
 ## Why this exists
 
 Platform teams already ship golden paths for normal apps: a universal Helm
