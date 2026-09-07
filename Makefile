@@ -29,6 +29,7 @@ platform:      ## install or upgrade every platform-owned piece
 	kubectl --context $(CTX) apply -f platform/gateway/agentgateway-proxy.yaml
 	kubectl --context $(CTX) apply -f platform/gateway/tools-gateway.yaml
 	./platform/gateway/tools-jwks.sh $(CTX)
+	kubectl --context $(CTX) apply -f platform/budgets/team-budgets.yaml
 	kubectl --context $(CTX) apply -f platform/minter/minter.yaml
 
 argocd:        ## install Argo CD and the agents ApplicationSet
