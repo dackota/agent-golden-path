@@ -6,10 +6,12 @@ For every agent registration ConfigMap (label goldenpath.dev/registration=true):
   3. mint a tool JWT (RS256, platform key) when the agent has tools
   4. write both into Secret <name>-platform-credentials in the agent's namespace
   5. write the agent's tool allow-list policy at the tool gateway
-Then garbage-collect Secrets and policies whose registration is gone.
+Then garbage-collect the Secrets, policies, and model keys whose
+registration is gone.
 Stdlib only. Talks to the Kubernetes API with the pod's ServiceAccount.
 """
 import base64
+import collections
 import json
 import os
 import ssl
@@ -18,12 +20,14 @@ import sys
 import time
 import urllib.request
 
-API = f"https://{os.environ['KUBERNETES_SERVICE_HOST']}:{os.environ['KUBERNETES_SERVICE_PORT']}"
 SA = "/var/run/secrets/kubernetes.io/serviceaccount"
-TOKEN = open(f"{SA}/token").read()
-CTX = ssl.create_default_context(cafile=f"{SA}/ca.crt")
+# Read defensively so this module imports outside a cluster. require_config()
+# fails fast in main() when a value is genuinely missing in the pod.
+API = f"https://{os.environ.get('KUBERNETES_SERVICE_HOST', '')}:{os.environ.get('KUBERNETES_SERVICE_PORT', '')}"
+TOKEN = open(f"{SA}/token").read() if os.path.exists(f"{SA}/token") else ""
+CTX = ssl.create_default_context(cafile=f"{SA}/ca.crt") if os.path.exists(f"{SA}/ca.crt") else None
 LITELLM = os.environ.get("LITELLM_URL", "http://litellm.platform-gateway.svc.cluster.local:4000")
-MASTER = os.environ["LITELLM_MASTER_KEY"]
+MASTER = os.environ.get("LITELLM_MASTER_KEY", "")
 SIGNING_KEY = os.environ.get("SIGNING_KEY_PATH", "/keys/platform.pem")
 GATEWAY_NS = os.environ.get("GATEWAY_NS", "platform-gateway")
 TOOLS_URL = "http://agentgateway-proxy.agentgateway-system.svc.cluster.local/mcp/platform-tools"
@@ -130,24 +134,64 @@ def ensure_ns_label(ns):
     urllib.request.urlopen(req, context=CTX, timeout=30).read()
 
 
-def gc(live):
-    """Delete minted Secrets and policies whose registration no longer exists."""
-    _, secrets = k8s("GET", "/api/v1/secrets?labelSelector=goldenpath.dev/minted=true")
-    for s in secrets.get("items", []):
-        key = (s["metadata"]["namespace"], s["metadata"]["labels"].get("goldenpath.dev/agent-name"))
-        if key not in live:
-            k8s("DELETE", f"/api/v1/namespaces/{key[0]}/secrets/{s['metadata']['name']}")
-            print(f"gc secret {key[0]}/{s['metadata']['name']}")
-    _, pols = k8s("GET", f"/apis/agentgateway.dev/v1alpha1/namespaces/{GATEWAY_NS}/agentgatewaypolicies?labelSelector=goldenpath.dev/minted=true")
-    for p in pols.get("items", []):
+Deletion = collections.namedtuple("Deletion", "kind ns name")
+
+
+def gc_plan(secrets, policies, live):
+    """What to delete for agents whose registration is gone. Pure, so it is tested.
+
+    Labels carry the agent identity. A missing label means the object cannot be
+    matched to an agent, so the planner leaves it alone rather than guess.
+    """
+    plan = []
+    for s in secrets:
+        ns = s["metadata"]["namespace"]
+        agent = s["metadata"]["labels"].get("goldenpath.dev/agent-name")
+        if not (ns and agent) or (ns, agent) in live:
+            continue
+        plan.append(Deletion("secret", ns, s["metadata"]["name"]))
+        plan.append(Deletion("llm-key", ns, f"{ns}/{agent}"))
+    for p in policies:
         ns = p["metadata"]["labels"].get("goldenpath.dev/agent-ns")
-        agent = p["metadata"]["name"].removeprefix(f"tools-allow-{ns}-")
-        if (ns, agent) not in live:
-            k8s("DELETE", f"/apis/agentgateway.dev/v1alpha1/namespaces/{GATEWAY_NS}/agentgatewaypolicies/{p['metadata']['name']}")
-            print(f"gc policy {p['metadata']['name']}")
+        name = p["metadata"]["name"]
+        agent = name.removeprefix(f"tools-allow-{ns}-")
+        if not (ns and agent) or (ns, agent) in live:
+            continue
+        plan.append(Deletion("policy", GATEWAY_NS, name))
+    return plan
+
+
+def apply_deletion(d):
+    if d.kind == "secret":
+        k8s("DELETE", f"/api/v1/namespaces/{d.ns}/secrets/{d.name}")
+    elif d.kind == "policy":
+        k8s("DELETE", f"/apis/agentgateway.dev/v1alpha1/namespaces/{d.ns}/agentgatewaypolicies/{d.name}")
+    elif d.kind == "llm-key":
+        # Without this the key keeps its budget at the gateway after the agent is gone.
+        litellm("/key/delete", {"key_aliases": [d.name]})
+    print(f"gc {d.kind} {d.name}")
+
+
+def gc(live):
+    """Delete minted Secrets, policies, and model keys whose registration is gone."""
+    _, secrets = k8s("GET", "/api/v1/secrets?labelSelector=goldenpath.dev/minted=true")
+    _, pols = k8s("GET", f"/apis/agentgateway.dev/v1alpha1/namespaces/{GATEWAY_NS}/agentgatewaypolicies?labelSelector=goldenpath.dev/minted=true")
+    for d in gc_plan(secrets.get("items", []), pols.get("items", []), live):
+        apply_deletion(d)
+
+
+def require_config():
+    checks = (("KUBERNETES_SERVICE_HOST", os.environ.get("KUBERNETES_SERVICE_HOST")),
+              ("KUBERNETES_SERVICE_PORT", os.environ.get("KUBERNETES_SERVICE_PORT")),
+              ("service account token", TOKEN),
+              ("LITELLM_MASTER_KEY", MASTER))
+    missing = [name for name, value in checks if not value]
+    if missing:
+        sys.exit(f"missing configuration: {', '.join(missing)}")
 
 
 def main():
+    require_config()
     code, cms = k8s("GET", f"/api/v1/configmaps?labelSelector={LABEL}")
     if code != 200:
         sys.exit(f"list configmaps: {code} {cms}")
