@@ -68,10 +68,6 @@ credential relationship. Both must end when the agent ends.
 | 17 | Convenience pushes builders to ask for broad access | Tools come from a platform catalog. agentgateway serves a per-agent allow list, kagent scopes `toolNames`, and writes need `requireApproval`. kagent's [prompt and tool-call audit stream](https://kagent.dev/docs/kagent/observability/audit-prompts/) shows which tools an agent actually calls, so a grant that is never used can be removed | agentgateway and kagent docs. Our test: 3 of 18 tools listed | Catalog and allow list wired. No audit stream, so nothing reports a tool granted but never called. Nobody reviews why a tool is needed |
 | 18 | Cost must attach to a behaviour, not just a month | LiteLLM tags each call with the key's metadata, caps spend per model with `model_max_budget`, and for agents adds session controls: `max_budget_per_session`, `max_iterations`, `session_rpm_limit`, and `session_tpm_limit`. A runaway loop then stops inside the task, not at the end of the month | [LiteLLM budgets and rate limits](https://docs.litellm.ai/docs/proxy/users) | A 30-day cap and per-key attribution only. No session budget and no iteration cap. Model spend is counted. Tool and third-party spend is not |
 
-The gaps in the last column are configuration, not research. Row 15 is the one
-I would close next: every credential except the model key and the tool token
-still sits outside the platform pattern.
-
 ## What you run
 
 ```
