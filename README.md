@@ -20,14 +20,12 @@ answers it and the test that proves it, on one page.
 Platform teams already ship golden paths for normal apps: a universal Helm
 chart, hardened base images, shared CI. Agents broke that pattern. They call
 paid models, they call tools that can change systems, and they were being
-built by people who are not backend engineers. Each team was about to solve
+built by people who are not engineers. Each team was about to solve
 model keys, tool access, budgets, and isolation on its own. This project makes
 those decisions once, in the platform, and gives every agent the same shape.
 
 The research that led here is in
 [docs/research](docs/research/2026-09-05-agent-deployment-golden-path.md).
-The full proof log of what was built and tested is in
-[docs/spike-log.md](docs/spike-log.md).
 
 ## What a developer does
 
