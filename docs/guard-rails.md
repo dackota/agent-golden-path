@@ -57,6 +57,18 @@ without the policy reached the model host (`200`).
 | One gateway, many tool servers, still per-agent | vibe-app token vs orders-agent token on the same endpoint | 3 Kubernetes tools vs 3 order tools, no overlap |
 | Human approval | prompt agent with `approval: true` | task stopped in `input-required` before the tool ran |
 
+## At the API gateway
+
+The Orders API demands an `X-API-Key` header. Only agentgateway holds that key.
+
+| Rule | Test | Result |
+|---|---|---|
+| The API refuses anyone without the key | pod calls `orders-api:8000/orders/1002` directly | 401 "X-API-Key header missing or wrong" |
+| The gateway supplies it | same pod, same lack of credential, via `/apis/orders` | 200 with the order |
+| The wrapper holds no key | `orders-mcp` pod environment | one variable, `ORDERS_API_URL` |
+| The whole chain works | `tools/call get_order` on the MCP server | order 1002 returned |
+| The key is never in Git | `tests/test_platform_config.py` | a committed Secret value fails the build |
+
 ## At kagent
 
 | Rule | Test | Result |

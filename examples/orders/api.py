@@ -1,5 +1,8 @@
 """Fake internal Orders REST API. Stands in for any business API. Stdlib only.
 
+Every route except /healthz needs the X-API-Key header. The agent never holds
+that key. agentgateway does, and injects it on the way out.
+
 GET  /orders?customer=&status=   list orders
 GET  /orders/<id>                one order
 POST /orders/<id>/cancel         cancel it
@@ -17,13 +20,23 @@ ORDERS = {
 }
 
 
+API_KEY = os.environ.get("ORDERS_API_KEY", "")
+
+
 class H(BaseHTTPRequestHandler):
+    def _authorized(self):
+        if self.path.startswith("/healthz"):
+            return True
+        return bool(API_KEY) and self.headers.get("X-API-Key") == API_KEY
+
     def _send(self, code, obj):
         data = json.dumps(obj).encode()
         self.send_response(code); self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data)
 
     def do_GET(self):
+        if not self._authorized():
+            return self._send(401, {"error": "X-API-Key header missing or wrong"})
         u = urlparse(self.path)
         if u.path == "/healthz":
             return self._send(200, {"ok": True})
@@ -39,6 +52,8 @@ class H(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        if not self._authorized():
+            return self._send(401, {"error": "X-API-Key header missing or wrong"})
         parts = self.path.strip("/").split("/")
         if len(parts) == 3 and parts[0] == "orders" and parts[2] == "cancel":
             o = ORDERS.get(parts[1])

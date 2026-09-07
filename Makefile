@@ -28,6 +28,8 @@ platform:      ## install or upgrade every platform-owned piece
 	helm --kube-context $(CTX) upgrade -i agentgateway oci://cr.agentgateway.dev/charts/agentgateway -n agentgateway-system --version v1.5.0 --wait
 	kubectl --context $(CTX) apply -f platform/gateway/agentgateway-proxy.yaml
 	kubectl --context $(CTX) apply -f platform/gateway/tools-gateway.yaml
+	./platform/gateway/orders-credential.sh $(CTX)
+	kubectl --context $(CTX) apply -f platform/gateway/orders-api.yaml
 	./platform/gateway/tools-jwks.sh $(CTX)
 	kubectl --context $(CTX) apply -f platform/budgets/team-budgets.yaml
 	kubectl --context $(CTX) apply -f platform/minter/minter.yaml

@@ -73,7 +73,7 @@ Set `sandbox.expires` so it cleans itself up.
 | `healthPath` | `/healthz` | |
 | `command`, `args` | [] | override the image entrypoint. Rare |
 | `env` | {} | plain values. Not secrets. Cannot start with `LLM_`, `TOOLS_`, `OTEL_`, `AGENT_` |
-| `envFrom` | [] | names of Secrets you own in your namespace |
+| `envFrom` | [] | names of Secrets you own in your namespace. Read the warning below before using it |
 | `size` | `small` | `small` 0.25 cpu/256Mi, `medium` 1/1Gi, `large` 2/4Gi |
 | `replicas` | 1 | 1 to 5 |
 | `autoscaling.enabled` | true | HPA on CPU up to `maxReplicas` (default 3) |
@@ -82,6 +82,32 @@ Set `sandbox.expires` so it cleans itself up.
 | `schedule` | "" | cron. Set it and you get a CronJob, not a service |
 | `egress` | [] | extra hostnames. Recorded for platform approval. Not yet enforced by name |
 | `sandbox.expires` | "" | RFC3339. `codeexec` only |
+
+## Calling an API that needs a key
+
+Ask the platform to add it. You do not handle the credential.
+
+The platform puts the API behind the gateway and attaches the key there. Your
+agent calls the gateway with no credential, and the gateway adds the key on the
+way out. `examples/orders` is the worked example: the Orders API returns 401 to
+anyone calling it directly, and the agent still reads orders, because the key
+lives at the gateway and nowhere else.
+
+You get to the API the usual way, as a tool in your `tools:` list.
+
+### About `envFrom`
+
+`envFrom` mounts a Secret you made by hand. It still works, and sometimes it is
+the only option, but understand what you give up:
+
+- Nobody rotates it. It is valid until you change it.
+- It is not scoped. Whatever is in that Secret, your pod holds all of it.
+- The platform cannot see it, so it is in no inventory and no audit.
+- If it leaks, nothing at the gateway can narrow the damage.
+
+A gateway-held credential has none of those problems. Prefer it. Use `envFrom`
+only for a Secret that is genuinely not a credential to an outside service, and
+say so in your pull request.
 
 ## What you cannot set
 

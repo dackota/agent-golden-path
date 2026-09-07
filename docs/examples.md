@@ -14,14 +14,15 @@ flowchart LR
   A[orders-agent<br/>kind: prompt, team ops] -->|MCP| R[RemoteMCPServer orders-mcp<br/>namespace kagent]
   V[vibe-app<br/>kind: container] -->|MCP + JWT| G[agentgateway<br/>target: orders] --> S
   R --> S[MCPServer orders-mcp<br/>kmcp Deployment + Service]
-  S -->|HTTP| O[orders-api<br/>namespace demo-apis]
+  S -->|HTTP, no credential| GW[agentgateway<br/>adds X-API-Key] -->|HTTP + key| O[orders-api<br/>namespace demo-apis]
 ```
 
 Pieces, all under `examples/orders/` and `platform/tools/orders.yaml`:
 
 | Piece | What it is |
 |---|---|
-| `api.py` | A fake Orders REST API. Stands in for any business system. |
+| `api.py` | A fake Orders REST API. Stands in for any business system. It demands an `X-API-Key` header and returns 401 without it. |
+| `AgentgatewayBackend orders-api` | Holds the API key and injects it outbound. The wrapper, the agent pod, and the team namespace never see it. See `platform/gateway/orders-api.yaml`. |
 | `mcp_server.py` | 90 lines, stdlib only. One MCP tool per API call: `list_orders`, `get_order`, `cancel_order`. Each tool has a JSON schema so the model knows how to call it. |
 | `MCPServer orders-mcp` | kagent's CRD. kmcp turns it into a Deployment and Service, wires the transport, and reports `Ready`. |
 | `RemoteMCPServer orders-mcp` | The catalog entry prompt agents reference. `allowedNamespaces` shares it only with labeled agent namespaces. |

@@ -1,6 +1,10 @@
 # Example: an internal REST API exposed to agents as MCP tools.
 #
 #   orders-api  (plain Deployment, namespace demo-apis)  <- stands in for any business API
+#
+# The API demands an X-API-Key header. Nothing on the agent side holds that key.
+# The MCP wrapper calls the gateway, and the gateway injects the key from a
+# Secret only it can read. See platform/gateway/orders-api.yaml.
 #   orders-mcp  (kagent MCPServer, namespace kagent)     <- kmcp deploys and fronts the MCP wrapper
 #   orders-mcp  (kagent RemoteMCPServer, namespace kagent) <- catalog entry, shared with agent namespaces
 apiVersion: v1
@@ -22,10 +26,13 @@ spec:
       securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: api
-          image: ghcr.io/dackota/orders-demo:0.1.0
+          image: ghcr.io/dackota/orders-demo:0.2.0
           imagePullPolicy: IfNotPresent
           command: ["python", "-u", "api.py"]
-          env: [{name: PORT, value: "8000"}]
+          env:
+            - {name: PORT, value: "8000"}
+            - name: ORDERS_API_KEY
+              valueFrom: {secretKeyRef: {name: orders-api-credentials, key: apiKey}}
           ports: [{containerPort: 8000}]
           readinessProbe: {httpGet: {path: /healthz, port: 8000}}
           securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
@@ -52,13 +59,14 @@ spec:
     path: /mcp
     targetPort: 8080
   deployment:
-    image: ghcr.io/dackota/orders-demo:0.1.0
+    image: ghcr.io/dackota/orders-demo:0.2.0
     imagePullPolicy: IfNotPresent
     port: 8080
     cmd: python
     args: ["-u", "mcp_server.py"]
     env:
-      ORDERS_API_URL: http://orders-api.demo-apis.svc.cluster.local:8000
+      # Through the gateway, not straight at the API. The gateway adds the key.
+      ORDERS_API_URL: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/apis/orders
     podSecurityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
     securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
     resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 128Mi}}
