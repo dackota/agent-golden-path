@@ -1,9 +1,5 @@
 # Agent golden path: the spike
 
-Start here. This page states the problem, the answer, the part that does the
-work, and the proof. Every other document in the repo is detail behind a row
-of one of the two tables below.
-
 ## The problem
 
 Teams are about to put AI agents into production. Agents spend money on model
