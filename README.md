@@ -1,19 +1,30 @@
 # Agent Golden Path
 
 A self-service way to put AI agents into production on Kubernetes, with the
-guard rails already on.
+guard rails already on. A developer writes one `values.yaml`, opens a pull
+request, and Argo CD deploys the agent. The developer never sees a credential
+and cannot turn a guard rail off.
 
-A developer writes one `values.yaml`, opens a pull request, and Argo CD
-deploys the agent. The platform hands the agent a budgeted model key, a scoped
-tool token, a URL, network rules, and an isolated runtime. The developer never
-sees a credential and cannot turn a guard rail off.
+## The problems it solves
+
+Every row was tested on a running cluster. The full map of eighteen concerns,
+with the tool behind each answer and what is still open, is in
+[SPIKE.md](SPIKE.md).
+
+| Problem | What happens instead | Proven by |
+|---|---|---|
+| Staff paste model keys into Deployments | Pods never hold a provider key. The LLM gateway keeps the real keys and mints one scoped virtual key per agent. Network policy makes the gateway the only route to a model | An agent pod cannot reach the model host. The same pod reaches the gateway. A pod without the policy reaches the model host |
+| An agent runs up a bill | A hard monthly budget per agent, and a cap per team that no number of agents can exceed. Both are enforced at the gateway, not in the agent | A $0.0001 key was refused its second call. A team capped at $1e-7 could not mint a key with $100 left on it |
+| An agent calls a tool it should not | Tools come from a platform catalog. A per-agent allow-list at the tool gateway hides everything else from `tools/list`. Writes can require a human to approve each call | One token sees 3 of 18 tools. A hidden tool returns "Unknown tool". "Cancel order 1004" stopped in `input-required` and the order was untouched |
+| Non-developers cannot ship a container | `kind: prompt` is a system prompt and a tool list. No code, no image. The platform runs it | Two agents run from a values file alone, one of them across a namespace boundary |
+| Generated code needs isolation | `kind: codeexec` claims a pre-warmed sandbox with a non-root, read-only filesystem and its own default-deny network policy | Claim served in seconds. `touch /etc/x` fails. Egress to the model host is blocked |
+| Teams step on each other | One Argo CD project per team allows one repo and one namespace, and no cluster-scoped resources | Argo refused an app aimed at another namespace, an app from a foreign repo, and an attempt to create a namespace |
+| Deleting the agent does not end the bill | The chart registers each agent. A platform minter turns that into keys and policies, and removes them when the registration is gone | Deleting an agent's folder removed its workload, its ConfigMaps, its minted Secret, its gateway policy, and its model key |
+| Agents need to work together | An agent may list another team's agent as a tool, but only if that team consents in its own values | A concierge delegated to a specialist in another namespace. An agent from an unlisted namespace was refused |
 
 This repo is the whole thing: the platform install, the dev-facing Helm chart,
 the GitOps wiring, the credential minter, the CI, and the docs. It runs end to
 end on a laptop with `kind` and a local model.
-
-**New here?** [SPIKE.md](SPIKE.md) maps every concern to the part that
-answers it and the test that proves it, on one page.
 
 ## Why this exists
 
@@ -85,20 +96,6 @@ delegates to another team's specialist over A2A. See
 Read [docs/architecture.md](docs/architecture.md) for the flows, and
 [docs/tooling.md](docs/tooling.md) for what each tool does and why it was picked.
 
-## Guard rails
-
-Every one of these was tested. The proof is in [docs/guard-rails.md](docs/guard-rails.md).
-
-- Only catalog models. Only catalog tools. Only signed images from allowed registries. No `:latest`.
-- A hard monthly budget per agent, enforced at the LLM gateway.
-- A per-agent tool allow-list. Hidden tools do not even appear in `tools/list`.
-- Default-deny network egress. An agent pod can reach DNS and the two gateways. Nothing else.
-- Non-root, read-only filesystem, no capabilities, no service account token.
-- A team can deploy only into its own namespace, only from this repo.
-- Human approval per tool for prompt agents.
-- Agents delegate to other teams' agents only with the callee's consent.
-- Delete the folder and everything goes, including the minted credentials.
-
 ## Run it yourself
 
 Needs Docker, kind, Helm, kubectl, Python 3 with PyYAML, and
@@ -129,12 +126,13 @@ examples/orders/     a REST API and its MCP wrapper, the "API as tools" example
 template/            the starter app a dev copies (mirrored to agent-app-template)
 tests/               schema negative tests, run in CI
 docs/                architecture, tooling, guard rails, guides, decisions
-.github/workflows/   validate (PRs), build-agent (reusable), publish-minter
+.github/workflows/   validate (PRs), build-agent (reusable), publish-images
 ```
 
 ## Status
 
-A working proof of concept on kind. The [platform guide](docs/platform-guide.md)
+A working proof of concept on kind. What is deliberately out of scope, and
+what each reader should open first, is at the bottom of [SPIKE.md](SPIKE.md). The [platform guide](docs/platform-guide.md)
 lists what changes for a real cluster: an identity provider as the JWT issuer,
 gVisor on the sandbox nodes, signature enforcement at admission, and
 OpenTelemetry collection. Decisions and their trade-offs are in
