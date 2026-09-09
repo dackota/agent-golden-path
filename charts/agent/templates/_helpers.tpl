@@ -24,7 +24,8 @@ goldenpath.dev/description: {{ .Values.description | quote }}
  "grafana":         {"server": "kagent-grafana-mcp", "tools": []},
  "web-fetch":       {"server": "kagent-tool-server", "tools": ["http_fetch"]},
  "orders-readonly": {"server": "orders-mcp", "tools": ["list_orders", "get_order"]},
- "orders-cancel":   {"server": "orders-mcp", "tools": ["cancel_order"]}}
+ "orders-cancel":   {"server": "orders-mcp", "tools": ["cancel_order"]},
+ "renovate-prs":    {"server": "github-prs", "tools": ["list_renovate_prs", "pr_status", "release_published_at"]}}
 {{- end }}
 
 {{/* Flat, sorted, unique list of granted tool names as JSON. */}}

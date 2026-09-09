@@ -76,7 +76,8 @@
                   "grafana",
                   "web-fetch",
                   "orders-readonly",
-                  "orders-cancel"
+                  "orders-cancel",
+                  "renovate-prs"
                 ]
               },
               "approval": {

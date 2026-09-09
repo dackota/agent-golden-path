@@ -64,7 +64,7 @@ Set `sandbox.expires` so it cleans itself up.
 | `model` | `default-chat` | or `default-fast`. Catalog names, never providers |
 | `budget.usdPerMonth` | 20 | 1 to 500. Hard stop at the gateway. Ask the platform for more |
 | `systemPrompt` | "" | required for `prompt` |
-| `tools[].name` | [] | `k8s-readonly`, `grafana`, `web-fetch`, `orders-readonly`, `orders-cancel` |
+| `tools[].name` | [] | `k8s-readonly`, `grafana`, `web-fetch`, `orders-readonly`, `orders-cancel`, `renovate-prs` |
 | `tools[].approval` | false | `prompt` only. Human approves each call |
 | `tools[].agent` | | `prompt` only. `team/name` of another agent to delegate to over A2A |
 | `delegation.allowFromTeams` | [] | `prompt` only. Teams whose agents may call this one |

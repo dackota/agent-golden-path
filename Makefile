@@ -3,12 +3,12 @@ CTX     := kind-agent-spike
 CLUSTER := agent-spike
 REPO    := https://github.com/dackota/agent-golden-path.git
 
-.PHONY: help up cluster platform argocd status test down
+.PHONY: help up cluster platform tools argocd status test down
 
 help:          ## list targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
 
-up: cluster platform argocd  ## everything: cluster, platform, Argo CD, demo agents
+up: cluster platform tools argocd  ## everything: cluster, platform, tools, Argo CD, demo agents
 
 cluster:       ## create the kind cluster if missing
 	kind get clusters | grep -q '^$(CLUSTER)$$' || kind create cluster --name $(CLUSTER) --wait 120s
@@ -31,6 +31,12 @@ platform:      ## install or upgrade every platform-owned piece
 	./platform/gateway/tools-jwks.sh $(CTX)
 	kubectl --context $(CTX) apply -f platform/budgets/team-budgets.yaml
 	kubectl --context $(CTX) apply -f platform/minter/minter.yaml
+
+tools:         ## install the shared tool servers and their platform credentials
+	kubectl --context $(CTX) apply -f platform/tools/orders.yaml
+	kubectl --context $(CTX) apply -f platform/tools/github-prs.yaml
+	./platform/tools/github-token.sh $(CTX)
+	kubectl --context $(CTX) -n kagent rollout status deploy/github-prs --timeout=300s
 
 argocd:        ## install Argo CD and the agents ApplicationSet
 	kubectl --context $(CTX) create ns argocd --dry-run=client -o yaml | kubectl --context $(CTX) apply -f -
