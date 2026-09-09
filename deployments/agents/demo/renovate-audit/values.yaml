@@ -5,8 +5,8 @@
 # has none of those, so this agent can never say a PR is safe.
 name: renovate-audit
 team: demo
-owner: dackota.johnson@suresteel.com
-description: Surveys open Renovate PRs on SureSteel/Wayne and reports a verdict per PR.
+owner: dackota.j@gmail.com
+description: Surveys open Renovate PRs on a repo and reports a verdict per PR.
 kind: prompt
 systemPrompt: |
   You survey open Renovate dependency pull requests on the GitHub repository
