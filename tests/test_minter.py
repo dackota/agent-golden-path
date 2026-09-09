@@ -140,3 +140,48 @@ class TeamAction(unittest.TestCase):
 
     def test_updates_a_team_that_has_no_cap_at_all(self):
         self.assertEqual(minter.team_action({"max_budget": None}, 200.0), "update")
+
+
+def registration(**over):
+    reg = {"name": "auditor", "team": "demo", "owner": "a@b.co", "kind": "container",
+           "model": "default-chat", "usdPerMonth": 5, "toolNames": [], "repos": []}
+    reg.update(over)
+    return reg
+
+
+class SecretData(unittest.TestCase):
+    """What lands in an agent's credentials Secret, given what was minted."""
+
+    def test_every_agent_gets_the_model_key_and_where_to_send_it(self):
+        data = minter.secret_data(registration(), "sk-1", None, None)
+        self.assertEqual(data["LLM_API_KEY"], "sk-1")
+        self.assertEqual(data["LLM_MODEL"], "default-chat")
+        self.assertIn("LLM_BASE_URL", data)
+
+    def test_an_agent_with_no_tools_gets_no_tool_token(self):
+        data = minter.secret_data(registration(), "sk-1", "jwt-1", None)
+        self.assertNotIn("TOOLS_TOKEN", data)
+        self.assertNotIn("TOOLS_URL", data)
+
+    def test_an_agent_with_tools_gets_the_tool_token(self):
+        data = minter.secret_data(registration(toolNames=["pr_status"]), "sk-1", "jwt-1", None)
+        self.assertEqual(data["TOOLS_TOKEN"], "jwt-1")
+        self.assertIn("TOOLS_URL", data)
+
+    def test_an_agent_with_no_repos_gets_no_github_token(self):
+        data = minter.secret_data(registration(), "sk-1", None, "gh-1")
+        self.assertNotIn("GITHUB_TOKEN", data)
+
+    def test_an_agent_with_repos_gets_the_github_token(self):
+        data = minter.secret_data(registration(repos=["acme/widgets"]), "sk-1", None, "gh-1")
+        self.assertEqual(data["GITHUB_TOKEN"], "gh-1")
+
+    def test_a_missing_github_token_is_never_written_as_an_empty_value(self):
+        """An empty credential reads as present and fails far from here."""
+        data = minter.secret_data(registration(repos=["acme/widgets"]), "sk-1", None, "")
+        self.assertNotIn("GITHUB_TOKEN", data)
+
+    def test_no_value_in_the_secret_is_ever_empty(self):
+        data = minter.secret_data(registration(toolNames=["pr_status"], repos=["o/r"]),
+                                  "sk-1", "jwt-1", "gh-1")
+        self.assertTrue(all(v for v in data.values()), data)

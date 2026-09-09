@@ -123,6 +123,7 @@ charts/agent/        the dev-facing chart. One kind switch. Strict schema.
 deployments/agents/  <team>/<name>/values.yaml. PR here to deploy. Argo watches it.
 platform/            platform-owned: gateways, minter, kagent, sandbox, tools, Argo wiring
 examples/orders/     a REST API and its MCP wrapper, the "API as tools" example
+apps/                source for agent images this repo owns
 template/            the starter app a dev copies (mirrored to agent-app-template)
 tests/               schema negative tests, run in CI
 docs/                architecture, tooling, guard rails, guides, decisions

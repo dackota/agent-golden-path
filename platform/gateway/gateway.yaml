@@ -12,6 +12,8 @@ metadata:
   namespace: platform-gateway
 type: Opaque
 stringData:
+  # ANTHROPIC_API_KEY is not here on purpose. Add it with
+  # platform/gateway/anthropic-key.sh, which patches this Secret in place.
   LITELLM_MASTER_KEY: sk-spike-master-CHANGE-ME
   LITELLM_SALT_KEY: sk-spike-salt-CHANGE-ME
   DATABASE_URL: postgresql://litellm:litellm@litellm-db.platform-gateway.svc.cluster.local:5432/litellm
@@ -44,6 +46,16 @@ data:
           supports_function_calling: true
           input_cost_per_token: 0.000001
           output_cost_per_token: 0.000002
+      # For work a 12B local model cannot do: a long tool loop with real
+      # judgement. Real prices, so the per-agent budget means something.
+      - model_name: deep-reason
+        litellm_params:
+          model: anthropic/claude-sonnet-5
+          api_key: os.environ/ANTHROPIC_API_KEY
+        model_info:
+          supports_function_calling: true
+          input_cost_per_token: 0.000003
+          output_cost_per_token: 0.000015
     litellm_settings:
       drop_params: true
       turn_off_message_logging: true   # content capture off by default

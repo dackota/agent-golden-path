@@ -39,7 +39,8 @@
       "type": "string",
       "enum": [
         "default-chat",
-        "default-fast"
+        "default-fast",
+        "deep-reason"
       ]
     },
     "budget": {
@@ -76,7 +77,8 @@
                   "grafana",
                   "web-fetch",
                   "orders-readonly",
-                  "orders-cancel"
+                  "orders-cancel",
+                  "renovate-prs"
                 ]
               },
               "approval": {
@@ -146,7 +148,7 @@
           },
           {
             "not": {
-              "pattern": "^(LLM_|TOOLS_|OTEL_|AGENT_|PORT$)"
+              "pattern": "^(LLM_|TOOLS_|OTEL_|AGENT_|GITHUB_|PORT$)"
             }
           }
         ]
@@ -225,7 +227,9 @@
         "type": "string",
         "enum": [
           "api.github.com",
-          "api.slack.com"
+          "api.slack.com",
+          "github.com",
+          "registry.npmjs.org"
         ]
       }
     },
@@ -249,6 +253,20 @@
           "items": {
             "type": "string",
             "pattern": "^[a-z][a-z0-9-]{1,19}$"
+          }
+        }
+      }
+    },
+    "github": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repos": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"
           }
         }
       }

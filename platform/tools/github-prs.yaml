@@ -1,0 +1,65 @@
+# Platform-owned. Enough of GitHub to survey Renovate pull requests.
+#
+#   github-prs  (Deployment + Service, namespace kagent)  <- the MCP server
+#   github-prs  (RemoteMCPServer, namespace kagent)       <- catalog entry
+#   github-prs target on the platform-tools backend       <- route for kind=container agents
+#
+# Why not the upstream GitHub MCP server: it returns whole pull request
+# objects. A Renovate body carries the full release notes, so ten of them
+# measure about 120 kB. That one tool result is larger than an agent key's
+# per-minute token budget and the LLM gateway refuses the call. This server
+# answers the same questions in about 3 kB.
+#
+# The GitHub token stays in this pod. No agent holds it and no tool exposes it.
+# Create the Secret with platform/tools/github-token.sh; it is not in git.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-prs
+  namespace: kagent
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: github-prs}}
+  template:
+    metadata: {labels: {app: github-prs}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: server
+          image: ghcr.io/dackota/github-prs-mcp:0.1.0
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-u", "mcp_server.py"]
+          env:
+            - {name: PORT, value: "8080"}
+            - name: GITHUB_TOKEN
+              valueFrom: {secretKeyRef: {name: github-prs-token, key: token}}
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /healthz, port: 8080}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 500m, memory: 128Mi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-prs
+  namespace: kagent
+spec:
+  selector: {app: github-prs}
+  ports: [{port: 8080, targetPort: 8080}]
+---
+# The catalog entry a kind=prompt agent references. Shared only with labeled
+# agent namespaces.
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: github-prs
+  namespace: kagent
+spec:
+  description: Renovate pull request survey tools
+  protocol: STREAMABLE_HTTP
+  url: http://github-prs.kagent.svc.cluster.local:8080/mcp
+  allowedNamespaces:
+    from: Selector
+    selector:
+      matchLabels:
+        goldenpath.dev/agent-namespace: "true"
