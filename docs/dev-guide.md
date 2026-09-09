@@ -61,10 +61,10 @@ Set `sandbox.expires` so it cleans itself up.
 | `owner` | required | your email. Goes on every resource and on the gateway key |
 | `description` | required | one line. Shows in the catalog |
 | `kind` | `container` | `prompt`, `container`, `codeexec` |
-| `model` | `default-chat` | or `default-fast`. Catalog names, never providers |
+| `model` | `default-chat` | or `default-fast`, or `deep-reason` for a long tool loop. Catalog names, never providers |
 | `budget.usdPerMonth` | 20 | 1 to 500. Hard stop at the gateway. Ask the platform for more |
 | `systemPrompt` | "" | required for `prompt` |
-| `tools[].name` | [] | `k8s-readonly`, `grafana`, `web-fetch`, `orders-readonly`, `orders-cancel` |
+| `tools[].name` | [] | `k8s-readonly`, `grafana`, `web-fetch`, `orders-readonly`, `orders-cancel`, `renovate-prs` |
 | `tools[].approval` | false | `prompt` only. Human approves each call |
 | `tools[].agent` | | `prompt` only. `team/name` of another agent to delegate to over A2A |
 | `delegation.allowFromTeams` | [] | `prompt` only. Teams whose agents may call this one |
@@ -72,7 +72,8 @@ Set `sandbox.expires` so it cleans itself up.
 | `port` | 8080 | |
 | `healthPath` | `/healthz` | |
 | `command`, `args` | [] | override the image entrypoint. Rare |
-| `env` | {} | plain values. Not secrets. Cannot start with `LLM_`, `TOOLS_`, `OTEL_`, `AGENT_` |
+| `env` | {} | plain values. Not secrets. Cannot start with `LLM_`, `TOOLS_`, `OTEL_`, `AGENT_`, `GITHUB_` |
+| `github.repos` | [] | `owner/name`, up to 5. The platform mints `GITHUB_TOKEN` into your credentials Secret. Needs platform approval |
 | `envFrom` | [] | names of Secrets you own in your namespace |
 | `size` | `small` | `small` 0.25 cpu/256Mi, `medium` 1/1Gi, `large` 2/4Gi |
 | `replicas` | 1 | 1 to 5 |

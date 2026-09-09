@@ -24,7 +24,8 @@ goldenpath.dev/description: {{ .Values.description | quote }}
  "grafana":         {"server": "kagent-grafana-mcp", "tools": []},
  "web-fetch":       {"server": "kagent-tool-server", "tools": ["http_fetch"]},
  "orders-readonly": {"server": "orders-mcp", "tools": ["list_orders", "get_order"]},
- "orders-cancel":   {"server": "orders-mcp", "tools": ["cancel_order"]}}
+ "orders-cancel":   {"server": "orders-mcp", "tools": ["cancel_order"]},
+ "renovate-prs":    {"server": "github-prs", "tools": ["list_renovate_prs", "pr_status", "release_published_at"]}}
 {{- end }}
 
 {{/* Flat, sorted, unique list of granted tool names as JSON. */}}
@@ -67,6 +68,11 @@ capabilities: {drop: [ALL]}
 - {name: TOOLS_URL, value: {{ include "agent.toolsUrl" . | quote }}}
 - name: TOOLS_TOKEN
   valueFrom: {secretKeyRef: {name: {{ include "agent.credentialsSecret" . }}, key: TOOLS_TOKEN}}
+{{- end }}
+{{- if .Values.github.repos }}
+- {name: GITHUB_REPOS, value: {{ join "," .Values.github.repos | quote }}}
+- name: GITHUB_TOKEN
+  valueFrom: {secretKeyRef: {name: {{ include "agent.credentialsSecret" . }}, key: GITHUB_TOKEN}}
 {{- end }}
 - name: AGENT_SYSTEM_PROMPT
   valueFrom: {configMapKeyRef: {name: {{ .Values.name }}-prompt, key: system.txt}}

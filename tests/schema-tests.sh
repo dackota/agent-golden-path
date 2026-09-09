@@ -24,6 +24,11 @@ expect_reject "replicas over cap"           -f "$BASE" --set replicas=50
 expect_reject "model not in catalog"        -f "$BASE" --set model=gpt-99
 expect_reject "prompt kind without prompt"  -f deployments/agents/demo/data-cruncher/values.yaml --set kind=prompt
 expect_reject "bad cron schedule"           -f "$BASE" --set schedule="every day"
+expect_reject "env overrides GITHUB_TOKEN"  -f "$BASE" --set env.GITHUB_TOKEN=x
+expect_reject "repo without an owner"       -f "$BASE" --set 'github.repos[0]=widgets'
+expect_reject "repo with a url"             -f "$BASE" --set 'github.repos[0]=https://github.com/o/r'
+expect_reject "egress host not approved"    -f "$BASE" --set 'egress[0]=evil.example.com'
+expect_reject "more than five repos"        -f "$BASE" --set 'github.repos={a/b,c/d,e/f,g/h,i/j,k/l}'
 echo "-- positive: cron agent renders"
 helm template t charts/agent -f tests/values-nightly-report.yaml >/dev/null && echo "ok   (accepted): nightly-report" || { echo "FAIL: nightly-report"; fail=1; }
 exit $fail

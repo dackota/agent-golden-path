@@ -44,4 +44,16 @@ spec:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: platform-observability}
       ports: [{port: 4318, protocol: TCP}]
+    {{- with .Values.egress }}
+    # Approved egress. kindnet cannot match a hostname, so this opens TLS to
+    # anything outside the cluster and private ranges. The names above are the
+    # approved list and a real cluster enforces them, with Cilium toFQDNs or an
+    # egress proxy the pod is forced through. Read the annotation, not this rule,
+    # for what the agent was allowed to reach.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+      ports: [{port: 443, protocol: TCP}]
+    {{- end }}
 {{- end }}

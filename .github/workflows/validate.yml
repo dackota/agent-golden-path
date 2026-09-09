@@ -26,10 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: YAML parses and minter compiles
+      - name: YAML parses and every Python source compiles
         run: |
           pip install pyyaml >/dev/null
           python3 -c "import yaml,glob; [list(yaml.safe_load_all(open(f))) for f in glob.glob('platform/**/*.yaml', recursive=True)]"
-          python3 -m py_compile platform/minter/minter.py
-      - name: Minter unit tests
+          python3 -m py_compile platform/minter/minter.py platform/tools/github-prs/mcp_server.py \
+            apps/renovate-auditor/app.py apps/renovate-auditor/agent.py apps/renovate-auditor/shell.py
+      - name: Unit tests
         run: python3 -m unittest discover -s tests -v

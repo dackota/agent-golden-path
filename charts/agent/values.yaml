@@ -16,7 +16,7 @@ description: ""          # one line. Shows in the agent catalog
 kind: container
 
 # Model and budget. Models are names from the platform catalog, never providers.
-model: default-chat      # default-chat | default-fast
+model: default-chat      # default-chat | default-fast | deep-reason
 budget:
   usdPerMonth: 20        # 1..500. Hard stop at the LLM gateway.
 
@@ -26,6 +26,12 @@ tools: []                # catalog tools: {name: k8s-readonly}, {name: orders-ca
                          # or another agent, by team/name: {agent: ops/orders-agent}  (prompt kind only)
 delegation:
   allowFromTeams: []     # prompt kind only. Teams whose agents may call this one over A2A.
+
+# Repositories this agent may read. The platform mints a read-only GitHub token
+# for them and writes it into your credentials Secret as GITHUB_TOKEN. You never
+# type a token. Needs platform approval, same as egress.
+github:
+  repos: []              # owner/name, e.g. acme/widgets
 
 # --- kind: container ---------------------------------------------------------
 image: ""                # ghcr.io/<org>/<repo>:<version>. No :latest.

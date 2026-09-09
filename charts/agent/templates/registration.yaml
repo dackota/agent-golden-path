@@ -13,4 +13,5 @@ data:
     {{ dict "name" .Values.name "team" .Values.team "owner" .Values.owner "kind" .Values.kind
             "model" .Values.model "usdPerMonth" .Values.budget.usdPerMonth
             "toolNames" (include "agent.toolNames" . | fromJsonArray)
+            "repos" .Values.github.repos
             "approvalTools" (list) | toJson }}

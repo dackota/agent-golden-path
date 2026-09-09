@@ -5,8 +5,9 @@ For every agent registration ConfigMap (label goldenpath.dev/registration=true):
   2. make sure the team exists at the LLM gateway with its monthly cap
   3. mint an LLM gateway key inside that team, with the agent's own budget
   4. mint a tool JWT (RS256, platform key) when the agent has tools
-  5. write both into Secret <name>-platform-credentials in the agent's namespace
-  6. write the agent's tool allow-list policy at the tool gateway
+  5. mint a GitHub token when the agent declares repos
+  6. write them all into Secret <name>-platform-credentials in the agent's namespace
+  7. write the agent's tool allow-list policy at the tool gateway
 Then garbage-collect the Secrets, policies, and model keys whose
 registration is gone.
 Stdlib only. Talks to the Kubernetes API with the pod's ServiceAccount.
@@ -34,6 +35,7 @@ GATEWAY_NS = os.environ.get("GATEWAY_NS", "platform-gateway")
 TOOLS_URL = "http://agentgateway-proxy.agentgateway-system.svc.cluster.local/mcp/platform-tools"
 LABEL = "goldenpath.dev/registration=true"
 BUDGETS_CM = os.environ.get("TEAM_BUDGETS_CONFIGMAP", "team-budgets")
+GITHUB_SECRET = os.environ.get("GITHUB_TOKEN_SECRET", "kagent/github-prs-token")
 MINTED = {"goldenpath.dev/minted": "true"}
 
 
@@ -157,15 +159,49 @@ def mint_llm_key(reg, ns, team_id):
     return res["key"]
 
 
+def read_platform_github_token():
+    ns, _, name = GITHUB_SECRET.partition("/")
+    code, sec = k8s("GET", f"/api/v1/namespaces/{ns}/secrets/{name}")
+    if code != 200:
+        raise RuntimeError(f"read {GITHUB_SECRET}: {code} {sec}")
+    return base64.b64decode(sec["data"]["token"]).decode()
+
+
+def mint_github_token(reg):
+    """A GitHub token for the repositories this agent declared, or None.
+
+    PoC: hands back the platform token. Real path: exchange it here for a
+    GitHub App installation token scoped to reg["repos"], short lived, and
+    re-mint on every run. This function is the seam for that.
+    """
+    if not reg.get("repos"):
+        return None
+    return read_platform_github_token()
+
+
+def secret_data(reg, llm_key, tools_token, github_token):
+    """What an agent's credentials Secret holds. Pure, so it is tested.
+
+    A credential is written only when the agent asked for the capability and
+    the mint produced a value. An empty value would read as present in the pod
+    and fail a long way from here.
+    """
+    data = {"LLM_API_KEY": llm_key, "LLM_BASE_URL": LITELLM, "LLM_MODEL": reg["model"]}
+    if reg.get("toolNames") and tools_token:
+        data["TOOLS_TOKEN"] = tools_token
+        data["TOOLS_URL"] = TOOLS_URL
+    if reg.get("repos") and github_token:
+        data["GITHUB_TOKEN"] = github_token
+    return data
+
+
 def ensure_secret(reg, ns, team_id):
     name = f"{reg['name']}-platform-credentials"
     code, _ = k8s("GET", f"/api/v1/namespaces/{ns}/secrets/{name}")
     if code == 200:
         return "exists"
-    data = {"LLM_API_KEY": mint_llm_key(reg, ns, team_id), "LLM_BASE_URL": LITELLM, "LLM_MODEL": reg["model"]}
-    if reg["toolNames"]:
-        data["TOOLS_TOKEN"] = mint_jwt(f"{ns}/{reg['name']}")
-        data["TOOLS_URL"] = TOOLS_URL
+    jwt = mint_jwt(f"{ns}/{reg['name']}") if reg["toolNames"] else None
+    data = secret_data(reg, mint_llm_key(reg, ns, team_id), jwt, mint_github_token(reg))
     body = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
             "metadata": {"name": name, "namespace": ns, "labels": {**MINTED, "goldenpath.dev/agent-name": reg["name"]}},
             "stringData": data}
@@ -283,7 +319,7 @@ def main():
             tid, t = ensure_team(reg["team"], require_team_budget(reg["team"], budgets))
             s = ensure_secret(reg, ns, tid)
             p = ensure_policy(reg, ns)
-            print(f"{ns}/{reg['name']}: team={t} secret={s} policy={p} tools={reg['toolNames']}")
+            print(f"{ns}/{reg['name']}: team={t} secret={s} policy={p} tools={reg['toolNames']} repos={reg.get('repos') or []}")
         except Exception as e:  # keep going for the other agents; surface in logs
             print(f"{ns}/{reg['name']}: ERROR {e}")
     gc(live)
