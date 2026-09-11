@@ -113,7 +113,7 @@ guide. A CronJob was enough to prove the flow.
 **OpenTelemetry.** The chart injects `OTEL_*` env vars pointing at
 `otel-collector.platform-observability`. On kind that Service fronts one
 `grafana/otel-lgtm` pod: a collector, Tempo, Prometheus, Loki, and Grafana.
-Four things send to it. kagent sends traces and the prompt audit stream.
+Four things send to it. kagent sends traces. Its prompt audit stream is turned on but sent nothing from the Go runtime in 0.10.0, so treat it as unproven.
 agentgateway sends a span and an access log line per request, with the MCP
 tool name. LiteLLM sends a span per model call and exposes spend per key and
 team on `/metrics`. The template app sends its own `invoke_agent`, `chat`, and

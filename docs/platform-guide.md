@@ -111,12 +111,16 @@ kubectl --context kind-agent-spike -n platform-gateway logs job/$(kubectl --cont
 make observe   # Grafana at http://localhost:3000
 ```
 
-In Grafana, Explore. Tempo holds the traces: search by service name for an
-agent, and one request shows the agent's `invoke_agent` span, its `chat` spans
-with token counts and cost, its `execute_tool` spans, and under them the
-agentgateway span with `gen_ai.tool.name` and the LiteLLM span. Loki holds
-kagent's prompt audit stream and the agentgateway access log. Prometheus holds
-LiteLLM's `litellm_spend_metric` by `api_key_alias` and `team`.
+In Grafana, Explore. Tempo holds the traces. Search by service name for an
+agent. A prompt agent's request shows `invoke_agent`, `generate_content` with
+token counts, and `execute_tool` with the tool name. A container agent built
+from the template shows `invoke_agent`, `chat` with tokens and cost, and
+`execute_tool`, with the agentgateway and LiteLLM spans under them. kagent's
+Go runtime does not pass the trace header to LiteLLM, so for prompt agents the
+LiteLLM span is a separate trace. Loki holds the agentgateway access log. The
+kagent prompt audit stream is turned on but sent nothing in our test.
+LiteLLM's spend per key alias and team is on its `/metrics` endpoint, bearer
+token required. Nothing scrapes it on kind yet.
 
 Spend per agent without Grafana: `GET /key/info?key=<key>` on LiteLLM with the
 master key. Tool calls without Grafana: agentgateway logs in
