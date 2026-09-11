@@ -3,7 +3,7 @@ CTX     := kind-agent-spike
 CLUSTER := agent-spike
 REPO    := https://github.com/dackota/agent-golden-path.git
 
-.PHONY: help up cluster platform tools argocd status test down
+.PHONY: help up cluster platform tools argocd status observe test down
 
 help:          ## list targets
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -14,6 +14,7 @@ cluster:       ## create the kind cluster if missing
 	kind get clusters | grep -q '^$(CLUSTER)$$' || kind create cluster --name $(CLUSTER) --wait 120s
 
 platform:      ## install or upgrade every platform-owned piece
+	kubectl --context $(CTX) apply -f platform/observability/otel-lgtm.yaml
 	kubectl --context $(CTX) create ns kagent --dry-run=client -o yaml | kubectl --context $(CTX) apply -f -
 	helm --kube-context $(CTX) upgrade --install kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds --version 0.10.0 -n kagent
 	helm --kube-context $(CTX) upgrade --install kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent --version 0.10.0 -n kagent \
@@ -48,6 +49,10 @@ status:        ## what Argo and the minter have done
 	kubectl --context $(CTX) get applications -n argocd
 	kubectl --context $(CTX) get agents,deploy,cronjob,sandboxclaims,httproute,secrets -n team-demo
 	kubectl --context $(CTX) get agentgatewaypolicy -n platform-gateway
+
+observe:       ## open Grafana for traces, metrics, and the prompt audit log
+	@echo "Grafana: http://localhost:3000  (Explore -> Tempo for traces, Loki for the audit stream)"
+	kubectl --context $(CTX) -n platform-observability port-forward svc/otel-collector 3000:3000
 
 test:          ## unit tests, chart lint, render every agent, schema negative tests
 	python3 -m unittest discover -s tests

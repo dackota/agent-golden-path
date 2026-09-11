@@ -12,7 +12,7 @@ RUN apt-get update \
 RUN corepack enable && corepack prepare pnpm@10.15.0 --activate
 RUN useradd -u 10001 -m app
 WORKDIR /app
-COPY app.py agent.py shell.py ./
+COPY app.py agent.py otel.py shell.py ./
 USER 10001
 ENV PORT=8080 WORKSPACE=/data/work
 CMD ["python3", "-u", "app.py"]

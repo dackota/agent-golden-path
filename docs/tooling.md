@@ -110,8 +110,19 @@ Alternative: External Secrets Operator with a secret manager the minter writes
 to. That is the right shape for a real cluster and is listed in the platform
 guide. A CronJob was enough to prove the flow.
 
-**OpenTelemetry (planned).** The chart injects `OTEL_*` env vars pointing at a
-collector in `platform-observability`. The collector is not installed yet.
+**OpenTelemetry.** The chart injects `OTEL_*` env vars pointing at
+`otel-collector.platform-observability`. On kind that Service fronts one
+`grafana/otel-lgtm` pod: a collector, Tempo, Prometheus, Loki, and Grafana.
+Four things send to it. kagent sends traces. Its prompt audit stream is turned on but sent nothing from the Go runtime in 0.10.0, so treat it as unproven.
+agentgateway sends a span and an access log line per request, with the MCP
+tool name. LiteLLM sends a span per model call and exposes spend per key and
+team on `/metrics`. The template app sends its own `invoke_agent`, `chat`, and
+`execute_tool` spans with about 100 lines of stdlib code (`template/otel.py`),
+and passes a `traceparent` header so the gateways join its trace. No message
+content is captured anywhere by default.
+Alternative: Jaeger (traces only), Phoenix (LLM views, single pod), Langfuse
+(datasets and judges, six services). The LGTM pod is dev-only. A real cluster
+runs the OpenTelemetry Collector chart under the same Service name.
 
 ## Why not a hosted agent runtime
 

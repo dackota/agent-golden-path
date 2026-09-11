@@ -11,6 +11,7 @@
 | agentgateway | `agentgateway-system` | platform | Gateway API data plane. Fronts MCP tool servers with JWT auth and CEL allow-lists. Also the public route to container agents |
 | kagent | `kagent` | platform | Runs `prompt` agents from a CRD. Ships the MCP tool servers used in the catalog |
 | agent-sandbox | `agent-sandbox-system` | platform | Warm pool of isolated pods for `codeexec` agents |
+| Observability | `platform-observability` | platform | Service `otel-collector`. Receives traces, metrics, and the prompt audit stream from agents, kagent, agentgateway, and LiteLLM |
 | Agent pods | `team-<team>` | team | The agents themselves |
 
 ## Deploy flow

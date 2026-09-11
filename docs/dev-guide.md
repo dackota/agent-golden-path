@@ -38,7 +38,7 @@ these env vars and nothing else:
 | `TOOLS_URL`, `TOOLS_TOKEN` | MCP endpoint and your token. Only present if you asked for tools |
 | `AGENT_SYSTEM_PROMPT` | your `systemPrompt`, so you can change it without a rebuild |
 | `PORT` | listen here. Answer `GET /healthz` with 200 |
-| `OTEL_*` | tracing target. Use it if your SDK supports OpenTelemetry |
+| `OTEL_*` | tracing target. The template app already sends one trace per request with `otel.py`. Any OpenTelemetry SDK reads the same variables |
 
 Your URL is `http://<gateway>/agents/<team>/<name>/`. The prefix is stripped
 before it reaches you.
