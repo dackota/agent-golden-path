@@ -10,7 +10,7 @@ systemPrompt: |
 tools:
   - name: k8s-readonly
 container:
-  image: ghcr.io/dackota/agent-app-template:0.3.0
+  image: ghcr.io/dackota/agent-app-template:0.4.0
   port: 8080
   replicas: 1
 budget:

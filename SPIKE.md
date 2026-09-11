@@ -80,8 +80,10 @@ Needs Docker, kind, Helm, kubectl, Python 3 with PyYAML, and Ollama with
 
 This is a proof of concept on kind, not a product.
 
-- **Agent quality.** No evaluation gate in CI, and no prompt-injection tests.
-  The platform controls what an agent may do, not whether it does it well.
+- **Agent quality, partly.** Evals now live in `values.yaml`, run in CI and
+  nightly against the live agent, with a small local red team. See
+  [docs/evals.md](docs/evals.md). Prompt injection attacks that need
+  promptfoo's remote service are not run. No human-labelled ground truth yet.
 - **Intake.** Non-developers still edit YAML. A form, single sign-on, and a
   chat front door are the next piece of work.
 - **Third-party register.** Deciding which outside services are allowed, and

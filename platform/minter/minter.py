@@ -44,6 +44,11 @@ OBSERVABILITY_NS = os.environ.get("OBSERVABILITY_NS", "platform-observability")
 METRICS_KEY_SECRET = "litellm-metrics-key"
 METRICS_KEY_ALIAS = "platform/otel-collector"
 NO_MODEL = "no-model"
+# The nightly evals job. It is the grader and, in prompt mode, the target.
+EVALS_KEY_SECRET = "litellm-evals-key"
+EVALS_KEY_ALIAS = "platform/evals"
+EVALS_MODEL = "default-chat"
+EVALS_USD_PER_MONTH = 10
 
 
 def k8s(method, path, body=None):
@@ -230,27 +235,37 @@ def ensure_secret(reg, ns, team_id):
     return "created"
 
 
-def ensure_metrics_key():
-    """The collector's read-only key for LiteLLM /metrics, in the observability namespace."""
-    path = f"/api/v1/namespaces/{OBSERVABILITY_NS}/secrets/{METRICS_KEY_SECRET}"
+def evals_key_body():
+    """A key for the nightly evals job: the default model, a small monthly cap."""
+    return {"key_alias": EVALS_KEY_ALIAS, "models": [EVALS_MODEL], "max_budget": EVALS_USD_PER_MONTH,
+            "budget_duration": "30d", "metadata": {"purpose": "evals"}}
+
+
+def platform_keys():
+    """Secret name to /key/generate body, for the platform's own LiteLLM keys."""
+    return {METRICS_KEY_SECRET: metrics_key_body(), EVALS_KEY_SECRET: evals_key_body()}
+
+
+def ensure_platform_key(secret_name, body):
+    """Mint one platform key into the observability namespace, once."""
+    path = f"/api/v1/namespaces/{OBSERVABILITY_NS}/secrets/{secret_name}"
     code, _ = k8s("GET", path)
     if code == 200:
         return "exists"
     if code != 404:
         raise RuntimeError(f"read {path}: {code}")
-    body = metrics_key_body()
     code, res = litellm("/key/generate", body)
     if code == 400 and "alias" in json.dumps(res).lower():   # stale alias from a lost Secret
         litellm("/key/delete", {"key_aliases": [body["key_alias"]]})
         code, res = litellm("/key/generate", body)
     if code != 200:
-        raise RuntimeError(f"litellm metrics key {code}: {res}")
+        raise RuntimeError(f"litellm {secret_name} {code}: {res}")
     secret = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
-              "metadata": {"name": METRICS_KEY_SECRET, "namespace": OBSERVABILITY_NS},
-              "stringData": {"LITELLM_METRICS_KEY": res["key"]}}
+              "metadata": {"name": secret_name, "namespace": OBSERVABILITY_NS},
+              "stringData": {"LITELLM_API_KEY": res["key"]}}
     code, res = k8s("POST", f"/api/v1/namespaces/{OBSERVABILITY_NS}/secrets", secret)
     if code not in (200, 201):
-        raise RuntimeError(f"metrics key secret {code}: {res}")
+        raise RuntimeError(f"{secret_name} secret {code}: {res}")
     return "created"
 
 
@@ -345,10 +360,11 @@ def require_config():
 def main():
     require_config()
     budgets = read_team_budgets()
-    try:
-        print(f"metrics key: {ensure_metrics_key()}")
-    except Exception as e:   # the collector can wait a minute; agents cannot
-        print(f"metrics key: failed ({e})")
+    for secret_name, body in platform_keys().items():
+        try:
+            print(f"{secret_name}: {ensure_platform_key(secret_name, body)}")
+        except Exception as e:   # platform jobs can wait a minute; agents cannot
+            print(f"{secret_name}: failed ({e})")
     code, cms = k8s("GET", f"/api/v1/configmaps?labelSelector={LABEL}")
     if code != 200:
         sys.exit(f"list configmaps: {code} {cms}")

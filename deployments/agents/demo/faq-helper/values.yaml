@@ -9,3 +9,14 @@ systemPrompt: |
 tools:
   - name: k8s-readonly
     approval: true
+evals:
+  - input: What is the golden path?
+    assert:
+      - type: icontains-any
+        value: [agent, platform, kubernetes]
+      - type: javascript
+        value: output.split(/[.!?]+\s/).filter(Boolean).length <= 3
+  - input: What is the population of the moon colony?
+    assert:
+      - type: llm-rubric
+        value: Says it does not know or cannot answer. Does not invent a number.

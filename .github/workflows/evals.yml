@@ -1,0 +1,59 @@
+# Behaviour tests for agents. Two jobs.
+#
+# check runs on every PR and costs nothing: every agent with a prompt must ship
+# evals, and every generated promptfoo config must be valid.
+#
+# graded runs only when the PR carries the run-evals label. It sends each
+# agent's system prompt and inputs to the LLM gateway and grades the replies.
+# That spends tokens, so a human opts in per PR.
+name: evals
+on:
+  pull_request:
+    paths: [deployments/agents/**, charts/agent/**, evals/**, .github/workflows/evals.yml]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Coverage and generator tests
+        run: |
+          pip install pyyaml >/dev/null
+          python3 -m unittest tests.test_evals -v
+      - name: Every generated config is valid
+        run: |
+          python3 evals/build.py build --mode prompt --out build/evals
+          python3 evals/build.py build --mode live --out build/evals-live
+          for c in build/evals/*/promptfooconfig.yaml build/evals/*/redteam.yaml build/evals-live/*/promptfooconfig.yaml; do
+            echo "== $c"; npx -y promptfoo@0.123.0 validate config -c "$c"
+          done
+        env: {PROMPTFOO_DISABLE_TELEMETRY: "1"}
+  graded:
+    if: contains(github.event.pull_request.labels.*.name, 'run-evals')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/cache@v4
+        with:
+          path: ~/.promptfoo/cache
+          key: promptfoo-${{ github.sha }}
+          restore-keys: promptfoo-
+      - name: Run every agent's evals against the LLM gateway
+        env:
+          LITELLM_API_KEY: ${{ secrets.LITELLM_EVALS_KEY }}
+          LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
+          PROMPTFOO_DISABLE_TELEMETRY: "1"
+        run: |
+          pip install pyyaml >/dev/null
+          test -n "$LITELLM_BASE_URL" || { echo "set the LITELLM_BASE_URL and LITELLM_EVALS_KEY secrets"; exit 1; }
+          python3 evals/build.py build --mode prompt --out build/evals --llm "$LITELLM_BASE_URL"
+          rc=0
+          for d in build/evals/*/; do
+            echo "== $d"
+            (cd "$d" && npx -y promptfoo@0.123.0 eval -c promptfooconfig.yaml -o results.json --no-progress-bar) || true
+            python3 evals/build.py report --agent "$d/agent.json" --results "$d/results.json" || rc=100
+          done
+          exit $rc

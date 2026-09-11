@@ -1,0 +1,66 @@
+# Nightly behaviour tests against the live agents. Platform-owned.
+#
+# Reads every agent's evals ConfigMap (the chart renders one from `evals` in
+# values.yaml), sends each input to the running agent, grades with the
+# platform model through the LLM gateway, runs a small red team, and posts a
+# pass rate per agent to the collector. Grafana then shows quality over time
+# next to cost and traces.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: evals
+  namespace: platform-observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: evals-reader
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: evals-reader
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: evals-reader}
+subjects:
+  - {kind: ServiceAccount, name: evals, namespace: platform-observability}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: evals
+  namespace: platform-observability
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 5400
+      template:
+        spec:
+          serviceAccountName: evals
+          restartPolicy: Never
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+          containers:
+            - name: evals
+              image: ghcr.io/dackota/agent-evals:0.1.0
+              env:
+                # Minted by the platform minter: the default model, a small monthly cap.
+                - name: LITELLM_API_KEY
+                  valueFrom: {secretKeyRef: {name: litellm-evals-key, key: LITELLM_API_KEY}}
+                - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.platform-observability.svc.cluster.local:4318}
+                # Attack generation stays on the platform model. Nothing leaves the cluster.
+                - {name: PROMPTFOO_DISABLE_REDTEAM_REMOTE_GENERATION, value: "true"}
+                - {name: RUN_REDTEAM, value: "true"}
+              securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+              resources: {requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: "1", memory: 1Gi}}
+              volumeMounts: [{name: tmp, mountPath: /tmp}]
+          volumes:
+            - name: tmp
+              emptyDir: {sizeLimit: 1Gi}

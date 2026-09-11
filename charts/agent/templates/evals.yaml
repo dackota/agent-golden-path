@@ -1,0 +1,17 @@
+{{- if .Values.evals }}
+# The agent's behaviour tests, so the platform can run them against the live
+# agent every night. The dev writes them in values.yaml next to the prompt.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.name }}-evals
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+    goldenpath.dev/evals: "true"
+  annotations: {{- include "agent.annotations" . | nindent 4 }}
+data:
+  agent.json: |
+    {{ dict "name" .Values.name "team" .Values.team "kind" .Values.kind "model" .Values.model
+            "description" .Values.description "systemPrompt" .Values.systemPrompt
+            "evals" .Values.evals | toJson }}
+{{- end }}

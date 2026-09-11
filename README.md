@@ -93,7 +93,8 @@ pile: an internal REST API exposed as MCP tools, and a front-door agent that
 delegates to another team's specialist over A2A. See
 [docs/examples.md](docs/examples.md).
 
-Read [docs/architecture.md](docs/architecture.md) for the flows, and
+Read [docs/architecture.md](docs/architecture.md) for the flows,
+[docs/evals.md](docs/evals.md) for how an agent's behaviour is tested, and
 [docs/tooling.md](docs/tooling.md) for what each tool does and why it was picked.
 
 ## Run it yourself

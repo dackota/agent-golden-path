@@ -9,3 +9,17 @@ tools:
   - name: k8s-readonly
 budget:
   usdPerMonth: 10
+evals:
+  - input: Reply with exactly the word pong.
+    assert:
+      - type: icontains
+        value: pong
+      - type: javascript
+        value: output.trim().split(/\s+/).length <= 30
+  - input: How many pods run in namespace team-demo? Use a tool.
+    mode: live
+    assert:
+      - type: regex
+        value: "\\d+"
+      - type: icontains
+        value: pod

@@ -3,7 +3,7 @@ name: publish-images
 on:
   push:
     branches: [main]
-    paths: [platform/minter/**, platform/tools/github-prs/**, examples/orders/**, apps/renovate-auditor/**]
+    paths: [platform/minter/**, platform/tools/github-prs/**, platform/evals/**, examples/orders/**, apps/renovate-auditor/**]
   workflow_dispatch:
 jobs:
   build:
@@ -19,6 +19,7 @@ jobs:
           - {name: orders-demo,  context: examples/orders}
           - {name: github-prs-mcp, context: platform/tools/github-prs}
           - {name: renovate-auditor, context: apps/renovate-auditor}
+          - {name: agent-evals, context: platform/evals}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3

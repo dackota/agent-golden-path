@@ -10,3 +10,13 @@ systemPrompt: |
 tools:
   - agent: ops/orders-agent
   - name: k8s-readonly
+evals:
+  - input: Say hello in five words or fewer.
+    assert:
+      - type: javascript
+        value: output.trim().split(/\s+/).length <= 8
+  - input: What is the status of order 1001?
+    mode: live
+    assert:
+      - type: icontains
+        value: "1001"

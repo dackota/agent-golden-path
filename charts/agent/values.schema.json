@@ -270,6 +270,51 @@
           }
         }
       }
+    },
+    "evals": {
+      "type": "array",
+      "maxItems": 50,
+      "description": "Behaviour tests. Each is one input and the promptfoo assertions its reply must pass.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "input",
+          "assert"
+        ],
+        "properties": {
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "prompt",
+              "live",
+              "both"
+            ]
+          },
+          "assert": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "required": [
+                "type"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "allOf": [

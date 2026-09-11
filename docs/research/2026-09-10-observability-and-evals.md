@@ -158,7 +158,7 @@ Datasets from production. Langfuse dataset items take `source_trace_id`, so a ba
 4. Add `attributes.add` on the agentgateway policy to record the JWT subject on MCP spans and logs, for example `request.headers["authorization"]` is not safe to log, so map the parsed claim instead once the CEL variable for JWT claims is confirmed (unverified).
 5. Decide content retention. If the team wants prompts in traces, set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=span_only` on LiteLLM and kagent and document the retention window; otherwise leave `NO_CONTENT`.
 
-### Phase 3: evals gate
+### Phase 3: evals gate (done 2026-09-10 without garak and Langfuse, see docs/evals.md)
 
 1. Add `evals/promptfooconfig.yaml` with two provider entries: `openai:chat:default-chat` with `apiBaseUrl` set to the LiteLLM URL for prompt-only tests, and `https` with `url` set to the gateway path `/agents/{{team}}/{{name}}/chat` and `transformResponse` matching the app's JSON for end-to-end tests ([openai provider](https://www.promptfoo.dev/docs/providers/openai/), [http provider](https://www.promptfoo.dev/docs/providers/http/)). Set `defaultTest.options.provider: ollama:chat:gemma4:12b` locally.
 2. Add `evals/tests/<agent>.yaml` per demo agent: deterministic `contains`, `is-json`, `javascript` assertions first; `llm-rubric` second. Add `evals/redteam.yaml` with `purpose`, plugins `owasp:llm:01`, `indirect-prompt-injection` (var `context`), `tool-discovery`, `excessive-agency`, `rbac`, and strategies `jailbreak-templates`, `crescendo`; set `numTests: 3` to start ([OWASP LLM](https://www.promptfoo.dev/docs/red-team/owasp-llm-top-10/), [agents](https://www.promptfoo.dev/docs/red-team/agents/)).

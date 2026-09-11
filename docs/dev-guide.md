@@ -57,6 +57,7 @@ Set `sandbox.expires` so it cleans itself up.
 | Value | Default | Notes |
 |---|---|---|
 | `name` | required | lowercase, 3 to 30 chars |
+| `evals` | [] | behaviour tests: an input and promptfoo assertions. See [evals](evals.md) |
 | `team` | required | deploys to `team-<team>` |
 | `owner` | required | your email. Goes on every resource and on the gateway key |
 | `description` | required | one line. Shows in the catalog |
