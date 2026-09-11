@@ -37,6 +37,8 @@ spec:
       protocol: GRPC
       randomSampling: "true"
     accessLog:
+      # Every line carries jwt_sub (team-<team>/<agent>), gen_ai_tool_name,
+      # mcp_method_name, and trace_id by default. Nothing to add.
       otlp:
         backendRef:
           name: otel-collector

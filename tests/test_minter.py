@@ -185,3 +185,58 @@ class SecretData(unittest.TestCase):
         data = minter.secret_data(registration(toolNames=["pr_status"], repos=["o/r"]),
                                   "sk-1", "jwt-1", "gh-1")
         self.assertTrue(all(v for v in data.values()), data)
+
+
+class KeyBody(unittest.TestCase):
+    """The /key/generate request for an agent. Pure, so the budget rules are tested."""
+
+    def test_names_the_agent_and_its_team(self):
+        body = minter.key_body(registration(usdPerMonth=10), "team-demo", "team-demo")
+        self.assertEqual(body["key_alias"], "team-demo/auditor")
+        self.assertEqual(body["team_id"], "team-demo")
+        self.assertEqual(body["models"], ["default-chat"])
+
+    def test_hard_budget_is_the_declared_cap(self):
+        body = minter.key_body(registration(usdPerMonth=10), "team-demo", "team-demo")
+        self.assertEqual(body["max_budget"], 10)
+        self.assertEqual(body["budget_duration"], "30d")
+
+    def test_soft_budget_warns_before_the_hard_stop(self):
+        """Row 2 of SPIKE.md: the first sign of trouble must not be a stopped agent."""
+        body = minter.key_body(registration(usdPerMonth=10), "team-demo", "team-demo")
+        self.assertAlmostEqual(body["soft_budget"], 8.0)
+        self.assertLess(body["soft_budget"], body["max_budget"])
+
+    def test_soft_budget_stays_below_the_cap_for_any_cap(self):
+        for cap in (1, 0.5, 20, 500, 0.0001):
+            with self.subTest(cap=cap):
+                body = minter.key_body(registration(usdPerMonth=cap), "ns", "t")
+                self.assertGreater(body["soft_budget"], 0)
+                self.assertLess(body["soft_budget"], body["max_budget"])
+
+    def test_metadata_carries_who_pays(self):
+        body = minter.key_body(registration(), "team-demo", "team-demo")
+        self.assertEqual(body["metadata"], {"team": "demo", "owner": "a@b.co", "agent": "auditor"})
+
+
+class MetricsKeyBody(unittest.TestCase):
+    """The collector reads LiteLLM /metrics with a key that can do nothing else."""
+
+    def test_cannot_call_any_catalog_model(self):
+        body = minter.metrics_key_body()
+        self.assertEqual(body["models"], [minter.NO_MODEL])
+
+    def test_has_a_budget_too_small_to_spend(self):
+        body = minter.metrics_key_body()
+        self.assertGreater(body["max_budget"], 0)
+        self.assertLess(body["max_budget"], 0.001)
+
+    def test_may_read_metrics_and_no_other_route(self):
+        """Tested live: without allowed_routes LiteLLM treats /metrics as admin only."""
+        body = minter.metrics_key_body()
+        self.assertEqual(sorted(body["allowed_routes"]), ["/metrics", "/metrics/"])
+
+    def test_is_named_for_what_it_is(self):
+        body = minter.metrics_key_body()
+        self.assertEqual(body["key_alias"], minter.METRICS_KEY_ALIAS)
+        self.assertEqual(body["metadata"]["purpose"], "metrics")

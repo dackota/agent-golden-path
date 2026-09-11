@@ -150,7 +150,7 @@ Datasets from production. Langfuse dataset items take `source_trace_id`, so a ba
 7. `charts/agent/templates/container/networkpolicy.yaml` already allows 4318 to `platform-observability`. Add 4317 only if an agent uses gRPC. No change for the JSON path.
 8. Update `template/README.md` with the three env vars the app reads and what it emits.
 
-### Phase 2: real cluster
+### Phase 2: real cluster (done 2026-09-10, see docs/platform-guide.md)
 
 1. Replace the LGTM pod with `platform/observability/otel-collector-values.yaml` for the `open-telemetry/opentelemetry-collector` chart, `mode: deployment`, OTLP receivers on 4317 and 4318, exporters to the org's Tempo, Loki, and Mimir or to Langfuse at `/api/public/otel` over HTTP with the Basic auth header held by the collector, not by agents ([chart](https://github.com/open-telemetry/opentelemetry-helm-charts/blob/main/charts/opentelemetry-collector/README.md), [Langfuse OTLP](https://langfuse.com/docs/opentelemetry/get-started)). Keep the Service name `otel-collector`.
 2. Add Prometheus scrape targets: agentgateway on `15020/metrics`, LiteLLM `/metrics` with a bearer token secret, kagent controller with `controller.metrics.enabled: true` on 8443 ([agentgateway metrics](https://agentgateway.dev/docs/kubernetes/latest/documentation/observability/metrics/dataplane.md), [prometheus](https://docs.litellm.ai/docs/proxy/prometheus), [kagent values](https://github.com/kagent-dev/kagent/blob/v0.10.0/helm/kagent/values.yaml)).

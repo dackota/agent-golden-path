@@ -37,6 +37,13 @@ LABEL = "goldenpath.dev/registration=true"
 BUDGETS_CM = os.environ.get("TEAM_BUDGETS_CONFIGMAP", "team-budgets")
 GITHUB_SECRET = os.environ.get("GITHUB_TOKEN_SECRET", "kagent/github-prs-token")
 MINTED = {"goldenpath.dev/minted": "true"}
+# An alert fires at this share of an agent's budget, so someone hears before the hard stop.
+SOFT_BUDGET_RATIO = 0.8
+# The metrics reader key. It may call no model and can spend nothing, only read /metrics.
+OBSERVABILITY_NS = os.environ.get("OBSERVABILITY_NS", "platform-observability")
+METRICS_KEY_SECRET = "litellm-metrics-key"
+METRICS_KEY_ALIAS = "platform/otel-collector"
+NO_MODEL = "no-model"
 
 
 def k8s(method, path, body=None):
@@ -144,12 +151,24 @@ def read_team_budgets():
     return parse_team_budgets(cm.get("data") or {})
 
 
-def mint_llm_key(reg, ns, team_id):
-    alias = f"{ns}/{reg['name']}"
-    body = {"key_alias": alias, "team_id": team_id, "models": [reg["model"]],
-            "max_budget": reg["usdPerMonth"], "budget_duration": "30d",
-            "rpm_limit": 60, "tpm_limit": 200000,
+def key_body(reg, ns, team_id):
+    """The /key/generate request for one agent. Pure, so the budget rules are tested."""
+    return {"key_alias": f"{ns}/{reg['name']}", "team_id": team_id, "models": [reg["model"]],
+            "max_budget": reg["usdPerMonth"], "soft_budget": reg["usdPerMonth"] * SOFT_BUDGET_RATIO,
+            "budget_duration": "30d", "rpm_limit": 60, "tpm_limit": 200000,
             "metadata": {"team": reg["team"], "owner": reg["owner"], "agent": reg["name"]}}
+
+
+def metrics_key_body():
+    """A key that authenticates to /metrics and nothing else."""
+    # /metrics is an admin route unless the key names it in allowed_routes.
+    return {"key_alias": METRICS_KEY_ALIAS, "models": [NO_MODEL], "max_budget": 0.0001,
+            "allowed_routes": ["/metrics", "/metrics/"], "metadata": {"purpose": "metrics"}}
+
+
+def mint_llm_key(reg, ns, team_id):
+    body = key_body(reg, ns, team_id)
+    alias = body["key_alias"]
     code, res = litellm("/key/generate", body)
     if code == 400 and "alias" in json.dumps(res).lower():   # stale alias from a lost Secret
         litellm("/key/delete", {"key_aliases": [alias]})
@@ -208,6 +227,30 @@ def ensure_secret(reg, ns, team_id):
     code, res = k8s("POST", f"/api/v1/namespaces/{ns}/secrets", body)
     if code not in (200, 201):
         raise RuntimeError(f"secret {code}: {res}")
+    return "created"
+
+
+def ensure_metrics_key():
+    """The collector's read-only key for LiteLLM /metrics, in the observability namespace."""
+    path = f"/api/v1/namespaces/{OBSERVABILITY_NS}/secrets/{METRICS_KEY_SECRET}"
+    code, _ = k8s("GET", path)
+    if code == 200:
+        return "exists"
+    if code != 404:
+        raise RuntimeError(f"read {path}: {code}")
+    body = metrics_key_body()
+    code, res = litellm("/key/generate", body)
+    if code == 400 and "alias" in json.dumps(res).lower():   # stale alias from a lost Secret
+        litellm("/key/delete", {"key_aliases": [body["key_alias"]]})
+        code, res = litellm("/key/generate", body)
+    if code != 200:
+        raise RuntimeError(f"litellm metrics key {code}: {res}")
+    secret = {"apiVersion": "v1", "kind": "Secret", "type": "Opaque",
+              "metadata": {"name": METRICS_KEY_SECRET, "namespace": OBSERVABILITY_NS},
+              "stringData": {"LITELLM_METRICS_KEY": res["key"]}}
+    code, res = k8s("POST", f"/api/v1/namespaces/{OBSERVABILITY_NS}/secrets", secret)
+    if code not in (200, 201):
+        raise RuntimeError(f"metrics key secret {code}: {res}")
     return "created"
 
 
@@ -302,6 +345,10 @@ def require_config():
 def main():
     require_config()
     budgets = read_team_budgets()
+    try:
+        print(f"metrics key: {ensure_metrics_key()}")
+    except Exception as e:   # the collector can wait a minute; agents cannot
+        print(f"metrics key: failed ({e})")
     code, cms = k8s("GET", f"/api/v1/configmaps?labelSelector={LABEL}")
     if code != 200:
         sys.exit(f"list configmaps: {code} {cms}")

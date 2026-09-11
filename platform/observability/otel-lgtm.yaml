@@ -1,11 +1,9 @@
 # Where traces, metrics, and logs land on a laptop. Platform-owned. Installed once.
 #
-# One pod runs an OpenTelemetry Collector, Tempo, Prometheus, Loki, and Grafana.
-# The Service is named otel-collector because the agent chart, the NetworkPolicy,
-# kagent, LiteLLM, and agentgateway all send to
-# otel-collector.platform-observability.svc.cluster.local. Real path: the
-# OpenTelemetry Collector Helm chart under the same Service name, forwarding to
-# the org's Grafana stack. See docs/platform-guide.md.
+# One pod runs Tempo, Prometheus, Loki, and Grafana. It is the backend the
+# platform collector (otel-collector-values.yaml) forwards to. Nothing sends
+# here directly. A real cluster replaces this with the org's Grafana stack by
+# changing one endpoint in the collector values.
 #
 # Dev image, no persistence, no login. Not for a real cluster.
 apiVersion: v1
@@ -47,7 +45,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: otel-collector
+  name: otel-lgtm
   namespace: platform-observability
 spec:
   selector: {app: otel-lgtm}
