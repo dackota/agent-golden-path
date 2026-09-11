@@ -115,9 +115,9 @@ guide. A CronJob was enough to prove the flow.
 Collector Helm chart. It receives OTLP, scrapes LiteLLM, agentgateway, and
 the kagent controller for metrics, and forwards everything to one backend.
 On kind the backend is one `grafana/otel-lgtm` pod: Tempo, Prometheus, Loki,
-and Grafana. A real cluster changes one endpoint. Four things send to it. kagent sends traces. Its prompt audit stream is turned on but sent nothing from the Go runtime in 0.10.0, so treat it as unproven.
+and Grafana. A real cluster changes one endpoint. Four things send to it. kagent sends traces and the prompt audit stream, one log line per model exchange with content elided.
 agentgateway sends a span and an access log line per request, with the MCP
-tool name. LiteLLM sends a span per model call and exposes spend per key and
+tool name and the agent's JWT subject. LiteLLM sends a span per model call and exposes spend per key and
 team on `/metrics`. The template app sends its own `invoke_agent`, `chat`, and
 `execute_tool` spans with about 100 lines of stdlib code (`template/otel.py`),
 and passes a `traceparent` header so the gateways join its trace. No message

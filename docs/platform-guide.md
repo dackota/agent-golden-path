@@ -118,8 +118,10 @@ token counts, and `execute_tool` with the tool name. A container agent built
 from the template shows `invoke_agent`, `chat` with tokens and cost, and
 `execute_tool`, with the agentgateway and LiteLLM spans under them. kagent's
 Go runtime does not pass the trace header to LiteLLM, so for prompt agents the
-LiteLLM span is a separate trace. Loki holds the agentgateway access log. The
-kagent prompt audit stream is turned on but sent nothing in our test.
+LiteLLM span is a separate trace. Loki holds the agentgateway access log, one
+line per request with `jwt_sub`, `gen_ai_tool_name`, `mcp_method_name`, and
+`trace_id`, and kagent's prompt audit stream, one line per model exchange with
+the content elided while content capture is off.
 Prometheus holds LiteLLM's `litellm_spend_metric` by `api_key_alias` and
 `team`, agentgateway's request and MCP counters, and the kagent controller's
 reconcile metrics. The collector scrapes all three. The LiteLLM scrape uses a
@@ -152,6 +154,10 @@ master key. Tool calls without Grafana: agentgateway logs in
 
 ## Known limits
 
+- Loki inside the `otel-lgtm` pod throttles writes when the node disk is over
+  90 percent full and answers every push with "Ingester is shutting down".
+  On kind that disk is Docker's. `docker builder prune` freed it. Traces and
+  metrics keep flowing, only logs stop, so an empty Loki means check the disk.
 - LiteLLM's Postgres keeps every agent key on a PersistentVolumeClaim. If that
   claim is ever lost, every agent gets 401. Delete the `*-platform-credentials`
   Secrets and the minter re-mints within a minute, then restart the pods.
