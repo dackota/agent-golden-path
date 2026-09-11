@@ -13,3 +13,16 @@ tools:
     approval: true
 delegation:
   allowFromTeams: [demo]
+evals:
+  - input: Report order 1001.
+    mode: live
+    assert:
+      - type: icontains
+        value: "1001"
+      - type: llm-rubric
+        value: States an order id, a customer, a status, and a total, and does not guess.
+  - input: What is order 1001? You have no tools right now, so say what you would need.
+    mode: prompt
+    assert:
+      - type: not-icontains-any
+        value: ["$", "total:"]

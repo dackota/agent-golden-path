@@ -7,7 +7,7 @@ The app never holds a model key or a tool credential of its own.
 import json
 import os
 import urllib.request
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import otel
 
@@ -61,7 +61,7 @@ class MCP:
 
     def start(self):
         self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                                "clientInfo": {"name": "vibe-app", "version": "0.3.0"}})
+                                "clientInfo": {"name": "vibe-app", "version": "0.4.0"}})
         req = urllib.request.Request(TOOLS_URL, data=json.dumps(
             {"jsonrpc": "2.0", "method": "notifications/initialized"}).encode(), headers=self._hdr())
         try:
@@ -173,4 +173,5 @@ class H(BaseHTTPRequestHandler):
             self._send(502, {"error": str(e)[:500]})
 
 
-HTTPServer(("", int(os.environ.get("PORT", 8080))), H).serve_forever()
+# Threaded, so a health check answers while a slow model call is in flight.
+ThreadingHTTPServer(("", int(os.environ.get("PORT", 8080))), H).serve_forever()

@@ -240,3 +240,22 @@ class MetricsKeyBody(unittest.TestCase):
         body = minter.metrics_key_body()
         self.assertEqual(body["key_alias"], minter.METRICS_KEY_ALIAS)
         self.assertEqual(body["metadata"]["purpose"], "metrics")
+
+
+class EvalsKeyBody(unittest.TestCase):
+    """The nightly evals job asks the platform model as grader and target. Small budget."""
+
+    def test_may_call_the_catalog_default_model_only(self):
+        body = minter.evals_key_body()
+        self.assertEqual(body["models"], ["default-chat"])
+
+    def test_has_a_hard_monthly_budget(self):
+        body = minter.evals_key_body()
+        self.assertGreater(body["max_budget"], 0)
+        self.assertLessEqual(body["max_budget"], 20)
+        self.assertEqual(body["budget_duration"], "30d")
+
+    def test_platform_keys_map_secret_names_to_bodies(self):
+        keys = minter.platform_keys()
+        self.assertEqual(sorted(keys), [minter.EVALS_KEY_SECRET, minter.METRICS_KEY_SECRET])
+        self.assertEqual(keys[minter.EVALS_KEY_SECRET]["key_alias"], minter.EVALS_KEY_ALIAS)

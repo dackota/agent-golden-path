@@ -20,6 +20,7 @@ Ollama must be running on the host with `gemma4:12b` pulled. Pods reach it at
 | Path | Purpose |
 |---|---|
 | `platform/observability/otel-collector-values.yaml` | the OpenTelemetry Collector, Service `otel-collector`. Receives OTLP, scrapes LiteLLM, agentgateway, and kagent metrics, forwards to one backend |
+| `platform/evals/` | the nightly evals runner: image, script, CronJob. Reads every agent's evals ConfigMap |
 | `platform/observability/otel-lgtm.yaml` | the dev backend on kind: Tempo, Prometheus, Loki, Grafana in one pod, Service `otel-lgtm` |
 | `platform/gateway/gateway.yaml` | LiteLLM, its Postgres, and the model catalog (`config.yaml`) |
 | `platform/gateway/agentgateway-proxy.yaml` | the one `Gateway` every route attaches to |

@@ -44,7 +44,7 @@ extraEnvs:
     value: http://otel-lgtm.platform-observability.svc.cluster.local:4318
   # Minted by the platform minter. It can read /metrics and call no model.
   - name: LITELLM_METRICS_KEY
-    valueFrom: {secretKeyRef: {name: litellm-metrics-key, key: LITELLM_METRICS_KEY}}
+    valueFrom: {secretKeyRef: {name: litellm-metrics-key, key: LITELLM_API_KEY}}
 
 config:
   receivers:
