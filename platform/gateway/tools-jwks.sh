@@ -6,6 +6,9 @@ set -euo pipefail
 CTX="$1"; DIR="$(cd "$(dirname "$0")" && pwd)"; KEYS="$DIR/.keys"; mkdir -p "$KEYS"
 [ -f "$KEYS/platform.pem" ] || openssl genrsa -out "$KEYS/platform.pem" 2048 2>/dev/null
 openssl rsa -in "$KEYS/platform.pem" -pubout -out "$KEYS/platform.pub" 2>/dev/null
+# The minter signs tool JWTs with the private key. It mounts this Secret at /keys.
+kubectl --context "$CTX" -n platform-gateway create secret generic platform-tools-signing-key \
+  --from-file=platform.pem="$KEYS/platform.pem" --dry-run=client -o yaml | kubectl --context "$CTX" apply -f -
 MOD_HEX=$(openssl rsa -pubin -in "$KEYS/platform.pub" -noout -modulus | cut -d= -f2)
 N=$(python3 -c "import base64,sys; print(base64.urlsafe_b64encode(bytes.fromhex(sys.argv[1])).rstrip(b'=').decode())" "$MOD_HEX")
 JWKS=$(printf '{"keys":[{"kty":"RSA","use":"sig","alg":"RS256","kid":"platform-1","n":"%s","e":"AQAB"}]}' "$N")
