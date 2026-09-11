@@ -6,7 +6,7 @@
 make up
 ```
 
-That creates a kind cluster and installs, in order: kagent and its CRDs,
+That creates a kind cluster and installs, in order: the observability pod, kagent and its CRDs,
 agent-sandbox, the LiteLLM gateway with Postgres, Gateway API CRDs,
 agentgateway and its proxy, the tools route and JWT policy, the minter, Argo
 CD, and the Argo project and ApplicationSet. Argo then deploys the demo agents
@@ -19,6 +19,7 @@ Ollama must be running on the host with `gemma4:12b` pulled. Pods reach it at
 
 | Path | Purpose |
 |---|---|
+| `platform/observability/otel-lgtm.yaml` | where traces, metrics, and logs land on kind. Service `otel-collector` |
 | `platform/gateway/gateway.yaml` | LiteLLM, its Postgres, and the model catalog (`config.yaml`) |
 | `platform/gateway/agentgateway-proxy.yaml` | the one `Gateway` every route attaches to |
 | `platform/gateway/tools-gateway.yaml` | `AgentgatewayBackend` for the MCP servers, its route, default deny |
@@ -106,8 +107,20 @@ make status
 kubectl --context kind-agent-spike -n platform-gateway logs job/$(kubectl --context kind-agent-spike -n platform-gateway get jobs --sort-by=.metadata.creationTimestamp -o name | tail -1 | cut -d/ -f2)
 ```
 
-Spend per agent: `GET /key/info?key=<key>` on LiteLLM with the master key, or
-the LiteLLM UI. Tool calls: agentgateway logs in `agentgateway-system`.
+```
+make observe   # Grafana at http://localhost:3000
+```
+
+In Grafana, Explore. Tempo holds the traces: search by service name for an
+agent, and one request shows the agent's `invoke_agent` span, its `chat` spans
+with token counts and cost, its `execute_tool` spans, and under them the
+agentgateway span with `gen_ai.tool.name` and the LiteLLM span. Loki holds
+kagent's prompt audit stream and the agentgateway access log. Prometheus holds
+LiteLLM's `litellm_spend_metric` by `api_key_alias` and `team`.
+
+Spend per agent without Grafana: `GET /key/info?key=<key>` on LiteLLM with the
+master key. Tool calls without Grafana: agentgateway logs in
+`agentgateway-system`.
 
 ## What changes for a real cluster
 
@@ -118,7 +131,7 @@ the LiteLLM UI. Tool calls: agentgateway logs in `agentgateway-system`.
 | Minter CronJob every minute | A controller with a watch, or External Secrets Operator writing to a secret manager |
 | Minter reads Secrets cluster-wide | One Role per team namespace |
 | SandboxTemplate without `runtimeClassName` | `runtimeClassName: gvisor` and node pools that have it |
-| `OTEL_*` env with no collector | An OpenTelemetry collector in `platform-observability`. Content capture off |
+| One `grafana/otel-lgtm` pod, no login, no disk | The OpenTelemetry Collector chart as Service `otel-collector`, forwarding to the org Grafana stack. Scrape agentgateway `15020`, LiteLLM `/metrics`, kagent controller. Content capture stays off unless retention is decided |
 | Signed images, not enforced | Kyverno or Sigstore policy-controller verifies the cosign identity at admission |
 | Public git, no credentials | Argo repo Secret for a private repo |
 | Path-based HTTP on the proxy | TLS and SSO on the gateway listener |

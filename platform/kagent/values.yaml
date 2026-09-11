@@ -7,3 +7,23 @@ providers:
     model: gemma4:12b
     config:
       host: host.docker.internal:11434
+
+# Traces and the prompt audit stream go to the platform collector. The
+# controller copies these into every agent pod as OTEL_* variables.
+# Logging (the audit stream) sends every prompt and reply. kagent documents it
+# for the OpenAI and Anthropic providers; prompt agents in this repo use the
+# OpenAI provider through the LLM gateway, so they qualify.
+otel:
+  tracing:
+    enabled: true
+    exporter:
+      otlp:
+        endpoint: http://otel-collector.platform-observability.svc.cluster.local:4317
+        protocol: grpc
+        insecure: true
+  logging:
+    enabled: true
+    exporter:
+      otlp:
+        endpoint: http://otel-collector.platform-observability.svc.cluster.local:4317
+        insecure: true

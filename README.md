@@ -135,6 +135,6 @@ docs/                architecture, tooling, guard rails, guides, decisions
 A working proof of concept on kind. What is deliberately out of scope, and
 what each reader should open first, is at the bottom of [SPIKE.md](SPIKE.md). The [platform guide](docs/platform-guide.md)
 lists what changes for a real cluster: an identity provider as the JWT issuer,
-gVisor on the sandbox nodes, signature enforcement at admission, and
-OpenTelemetry collection. Decisions and their trade-offs are in
+gVisor on the sandbox nodes, signature enforcement at admission, and a
+production trace backend. Decisions and their trade-offs are in
 [docs/decisions](docs/decisions/).

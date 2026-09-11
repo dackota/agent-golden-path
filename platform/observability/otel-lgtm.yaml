@@ -1,0 +1,57 @@
+# Where traces, metrics, and logs land on a laptop. Platform-owned. Installed once.
+#
+# One pod runs an OpenTelemetry Collector, Tempo, Prometheus, Loki, and Grafana.
+# The Service is named otel-collector because the agent chart, the NetworkPolicy,
+# kagent, LiteLLM, and agentgateway all send to
+# otel-collector.platform-observability.svc.cluster.local. Real path: the
+# OpenTelemetry Collector Helm chart under the same Service name, forwarding to
+# the org's Grafana stack. See docs/platform-guide.md.
+#
+# Dev image, no persistence, no login. Not for a real cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-lgtm
+  namespace: platform-observability
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: otel-lgtm}}
+  template:
+    metadata: {labels: {app: otel-lgtm}}
+    spec:
+      containers:
+        - name: lgtm
+          image: grafana/otel-lgtm:0.32.1
+          env:
+            # Laptop only. Anyone who can port-forward may read the dashboards.
+            - {name: GF_AUTH_ANONYMOUS_ENABLED, value: "true"}
+            - {name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: Admin}
+          ports:
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: otlp-http, containerPort: 4318}
+            - {name: grafana, containerPort: 3000}
+          readinessProbe:
+            httpGet: {path: /api/health, port: grafana}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 250m, memory: 1Gi}
+            limits: {cpu: "2", memory: 3Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: platform-observability
+spec:
+  selector: {app: otel-lgtm}
+  ports:
+    - {name: otlp-grpc, port: 4317, targetPort: otlp-grpc}
+    - {name: otlp-http, port: 4318, targetPort: otlp-http}
+    - {name: grafana, port: 3000, targetPort: grafana}

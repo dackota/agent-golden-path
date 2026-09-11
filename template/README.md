@@ -10,6 +10,7 @@ What is in it:
 | File | Purpose |
 |---|---|
 | `app.py` | A tiny agent. Stdlib only. Talks to the LLM gateway and the tool gateway using only the env vars the chart injects. |
+| `otel.py` | Sends one trace per request to the platform collector. Stdlib only. Reads `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_RESOURCE_ATTRIBUTES`. Emits token counts and cost, never message content. |
 | `Dockerfile` | Non-root, pinned base. Real path: the platform hardened base image. |
 | `agent.yaml` | The same values the chart takes. CI checks the image tag equals `VERSION`. |
 | `VERSION` | One line. Bump it with the image tag. |

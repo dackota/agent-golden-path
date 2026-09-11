@@ -24,7 +24,7 @@ team: <your team>
 owner: you@example.com
 description: Audits one Renovate pull request end to end.
 kind: container
-image: ghcr.io/dackota/renovate-auditor:0.2.0
+image: ghcr.io/dackota/renovate-auditor:0.3.0
 model: deep-reason
 budget:
   usdPerMonth: 50

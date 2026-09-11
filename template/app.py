@@ -9,6 +9,8 @@ import os
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import otel
+
 BASE = os.environ["LLM_BASE_URL"].rstrip("/")
 MODEL = os.environ.get("LLM_MODEL", "default-chat")
 KEY = os.environ.get("LLM_API_KEY", "")
@@ -33,12 +35,14 @@ def http_json(url, body, headers, timeout=120):
 class MCP:
     """Minimal MCP streamable-HTTP client. Enough for tools/list and tools/call."""
 
-    def __init__(self):
+    def __init__(self, root):
         self.session, self.n = None, 0
+        self.root, self.span = root, root   # every request carries the current span's traceparent
 
     def _hdr(self):
         h = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream",
-             "MCP-Protocol-Version": "2025-06-18", "Authorization": f"Bearer {TOOLS_TOKEN}"}
+             "MCP-Protocol-Version": "2025-06-18", "Authorization": f"Bearer {TOOLS_TOKEN}",
+             "traceparent": self.span.traceparent()}
         if self.session:
             h["Mcp-Session-Id"] = self.session
         return h
@@ -57,7 +61,7 @@ class MCP:
 
     def start(self):
         self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                                "clientInfo": {"name": "vibe-app", "version": "0.2.0"}})
+                                "clientInfo": {"name": "vibe-app", "version": "0.3.0"}})
         req = urllib.request.Request(TOOLS_URL, data=json.dumps(
             {"jsonrpc": "2.0", "method": "notifications/initialized"}).encode(), headers=self._hdr())
         try:
@@ -71,48 +75,83 @@ class MCP:
                  "parameters": t.get("inputSchema", {"type": "object", "properties": {}})}}
                 for t in self.rpc("tools/list").get("tools", [])]
 
-    def call(self, name, args):
-        r = self.rpc("tools/call", {"name": name, "arguments": args})
+    def call(self, name, args, call_id):
+        # The tool gateway reads the traceparent header and joins this span.
+        self.span = self.root.child(f"execute_tool {name}", otel.INTERNAL)
+        self.span.set({"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": name,
+                       "gen_ai.tool.call.id": call_id})
+        try:
+            r = self.rpc("tools/call", {"name": name, "arguments": args})
+        except Exception as e:
+            self.span.error(e).finish()
+            raise
+        self.span.finish()
         return "\n".join(c.get("text", "") for c in r.get("content", []))[:4000]
 
 
-def llm(messages, tools):
+def llm(messages, tools, parent):
     body = {"model": MODEL, "messages": messages}
     if tools:
         body["tools"] = tools
-    code, res, _ = http_json(f"{BASE}/chat/completions", body,
-                             {"Content-Type": "application/json", "Authorization": f"Bearer {KEY}"})
+    span = parent.child(f"chat {MODEL}").set({"gen_ai.operation.name": "chat",
+                                             "gen_ai.provider.name": "openai",
+                                             "gen_ai.request.model": MODEL})
+    code, res, hdrs = http_json(f"{BASE}/chat/completions", body,
+                                {"Content-Type": "application/json", "Authorization": f"Bearer {KEY}",
+                                 "traceparent": span.traceparent()})
     if code != 200:
+        span.error(RuntimeError(str(code))).finish()
         raise RuntimeError(f"llm -> HTTP {code}: {res.get('error')}")
+    usage, cost = res.get("usage") or {}, hdrs.get("x-litellm-response-cost")
+    span.set({"gen_ai.response.model": res.get("model"),
+              "gen_ai.usage.input_tokens": usage.get("prompt_tokens"),
+              "gen_ai.usage.output_tokens": usage.get("completion_tokens"),
+              "litellm.call_id": hdrs.get("x-litellm-call-id"),
+              "litellm.response_cost": float(cost) if cost else None}).finish()
     return res["choices"][0]["message"]
 
 
 def agent(message):
-    trace, tools, mcp = [], [], None
+    """One request. The trace is exported when the loop ends, however it ends."""
+    trace = otel.Trace()
+    root = trace.span(f"invoke_agent {trace.service}", otel.SERVER)
+    root.set({"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": trace.service})
+    try:
+        return run(message, root)
+    except Exception as e:
+        root.error(e)
+        raise
+    finally:
+        root.finish()
+        trace.export()
+
+
+def run(message, root):
+    notes, tools, mcp = [], [], None
     if TOOLS_URL:
         try:
-            mcp = MCP().start()
+            mcp = MCP(root).start()
             tools = mcp.tools_openai()
-            trace.append(f"tools visible: {[t['function']['name'] for t in tools]}")
+            notes.append(f"tools visible: {[t['function']['name'] for t in tools]}")
         except Exception as e:  # tools are optional; the gateway decides
-            trace.append(f"tools unavailable: {e}")
+            notes.append(f"tools unavailable: {e}")
     msgs = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": message}]
     for _ in range(MAX_STEPS):
-        m = llm(msgs, tools)
+        m = llm(msgs, tools, root)
         calls = m.get("tool_calls") or []
         if not calls:
-            return m.get("content", ""), trace
+            return m.get("content", ""), notes
         msgs.append(m)
         for c in calls:
             name, args = c["function"]["name"], json.loads(c["function"].get("arguments") or "{}")
             try:
-                out = mcp.call(name, args)
-                trace.append(f"tool {name}({args}) -> ok {len(out)} chars")
+                out = mcp.call(name, args, c["id"])
+                notes.append(f"tool {name}({args}) -> ok {len(out)} chars")
             except Exception as e:
                 out = f"tool error: {e}"
-                trace.append(f"tool {name}({args}) -> {e}")
+                notes.append(f"tool {name}({args}) -> {e}")
             msgs.append({"role": "tool", "tool_call_id": c["id"], "content": out})
-    return "(stopped after max tool steps)", trace
+    return "(stopped after max tool steps)", notes
 
 
 class H(BaseHTTPRequestHandler):
@@ -128,8 +167,8 @@ class H(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0))
         msg = json.loads(self.rfile.read(n) or b"{}").get("message", "hi")
         try:
-            reply, trace = agent(msg)
-            self._send(200, {"reply": reply, "trace": trace})
+            reply, notes = agent(msg)
+            self._send(200, {"reply": reply, "trace": notes})
         except Exception as e:
             self._send(502, {"error": str(e)[:500]})
 
