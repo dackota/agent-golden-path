@@ -111,9 +111,11 @@ to. That is the right shape for a real cluster and is listed in the platform
 guide. A CronJob was enough to prove the flow.
 
 **OpenTelemetry.** The chart injects `OTEL_*` env vars pointing at
-`otel-collector.platform-observability`. On kind that Service fronts one
-`grafana/otel-lgtm` pod: a collector, Tempo, Prometheus, Loki, and Grafana.
-Four things send to it. kagent sends traces. Its prompt audit stream is turned on but sent nothing from the Go runtime in 0.10.0, so treat it as unproven.
+`otel-collector.platform-observability`. That Service is the OpenTelemetry
+Collector Helm chart. It receives OTLP, scrapes LiteLLM, agentgateway, and
+the kagent controller for metrics, and forwards everything to one backend.
+On kind the backend is one `grafana/otel-lgtm` pod: Tempo, Prometheus, Loki,
+and Grafana. A real cluster changes one endpoint. Four things send to it. kagent sends traces. Its prompt audit stream is turned on but sent nothing from the Go runtime in 0.10.0, so treat it as unproven.
 agentgateway sends a span and an access log line per request, with the MCP
 tool name. LiteLLM sends a span per model call and exposes spend per key and
 team on `/metrics`. The template app sends its own `invoke_agent`, `chat`, and
@@ -121,8 +123,7 @@ team on `/metrics`. The template app sends its own `invoke_agent`, `chat`, and
 and passes a `traceparent` header so the gateways join its trace. No message
 content is captured anywhere by default.
 Alternative: Jaeger (traces only), Phoenix (LLM views, single pod), Langfuse
-(datasets and judges, six services). The LGTM pod is dev-only. A real cluster
-runs the OpenTelemetry Collector chart under the same Service name.
+(datasets and judges, six services). The LGTM pod is dev-only.
 
 ## Why not a hosted agent runtime
 

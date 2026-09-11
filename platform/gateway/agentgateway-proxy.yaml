@@ -37,6 +37,11 @@ spec:
       protocol: GRPC
       randomSampling: "true"
     accessLog:
+      # Which agent made the call. The JWT subject is team-<team>/<agent>.
+      attributes:
+        add:
+          - name: agent
+            expression: 'has(jwt.sub) ? jwt.sub : ""'
       otlp:
         backendRef:
           name: otel-collector

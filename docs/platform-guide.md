@@ -19,7 +19,8 @@ Ollama must be running on the host with `gemma4:12b` pulled. Pods reach it at
 
 | Path | Purpose |
 |---|---|
-| `platform/observability/otel-lgtm.yaml` | where traces, metrics, and logs land on kind. Service `otel-collector` |
+| `platform/observability/otel-collector-values.yaml` | the OpenTelemetry Collector, Service `otel-collector`. Receives OTLP, scrapes LiteLLM, agentgateway, and kagent metrics, forwards to one backend |
+| `platform/observability/otel-lgtm.yaml` | the dev backend on kind: Tempo, Prometheus, Loki, Grafana in one pod, Service `otel-lgtm` |
 | `platform/gateway/gateway.yaml` | LiteLLM, its Postgres, and the model catalog (`config.yaml`) |
 | `platform/gateway/agentgateway-proxy.yaml` | the one `Gateway` every route attaches to |
 | `platform/gateway/tools-gateway.yaml` | `AgentgatewayBackend` for the MCP servers, its route, default deny |
@@ -108,7 +109,7 @@ kubectl --context kind-agent-spike -n platform-gateway logs job/$(kubectl --cont
 ```
 
 ```
-make observe   # Grafana at http://localhost:3000
+make observe   # Grafana at http://localhost:3000, served by the otel-lgtm pod
 ```
 
 In Grafana, Explore. Tempo holds the traces. Search by service name for an
@@ -119,8 +120,16 @@ from the template shows `invoke_agent`, `chat` with tokens and cost, and
 Go runtime does not pass the trace header to LiteLLM, so for prompt agents the
 LiteLLM span is a separate trace. Loki holds the agentgateway access log. The
 kagent prompt audit stream is turned on but sent nothing in our test.
-LiteLLM's spend per key alias and team is on its `/metrics` endpoint, bearer
-token required. Nothing scrapes it on kind yet.
+Prometheus holds LiteLLM's `litellm_spend_metric` by `api_key_alias` and
+`team`, agentgateway's request and MCP counters, and the kagent controller's
+reconcile metrics. The collector scrapes all three. The LiteLLM scrape uses a
+key the minter mints for it, which can call no model.
+
+Budget alerts. Every agent key carries a `soft_budget` at 80 percent of its
+cap. LiteLLM fires an alert when spend crosses it. To hear it, add
+`general_settings.alerting: ["slack"]` to the LiteLLM config and a
+`SLACK_WEBHOOK_URL` to `litellm-secrets`. Without a channel the soft budget is
+recorded but nobody is told.
 
 Spend per agent without Grafana: `GET /key/info?key=<key>` on LiteLLM with the
 master key. Tool calls without Grafana: agentgateway logs in
@@ -135,7 +144,7 @@ master key. Tool calls without Grafana: agentgateway logs in
 | Minter CronJob every minute | A controller with a watch, or External Secrets Operator writing to a secret manager |
 | Minter reads Secrets cluster-wide | One Role per team namespace |
 | SandboxTemplate without `runtimeClassName` | `runtimeClassName: gvisor` and node pools that have it |
-| One `grafana/otel-lgtm` pod, no login, no disk | The OpenTelemetry Collector chart as Service `otel-collector`, forwarding to the org Grafana stack. Scrape agentgateway `15020`, LiteLLM `/metrics`, kagent controller. Content capture stays off unless retention is decided |
+| Collector forwards to the `otel-lgtm` pod, no login, no disk | Change `OTEL_BACKEND_ENDPOINT` in the collector values to the org Grafana stack, or to Langfuse at `/api/public/otel` with its auth header on the exporter. Nothing else moves. Content capture stays off unless retention is decided |
 | Signed images, not enforced | Kyverno or Sigstore policy-controller verifies the cosign identity at admission |
 | Public git, no credentials | Argo repo Secret for a private repo |
 | Path-based HTTP on the proxy | TLS and SSO on the gateway listener |

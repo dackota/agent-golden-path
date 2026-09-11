@@ -41,3 +41,8 @@ helm-agent: {enabled: false}
 cilium-policy-agent: {enabled: false}
 cilium-manager-agent: {enabled: false}
 cilium-debug-agent: {enabled: false}
+
+# Reconcile counts and errors on :8443, scraped by the platform collector.
+controller:
+  metrics:
+    enabled: true

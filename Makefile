@@ -15,6 +15,8 @@ cluster:       ## create the kind cluster if missing
 
 platform:      ## install or upgrade every platform-owned piece
 	kubectl --context $(CTX) apply -f platform/observability/otel-lgtm.yaml
+	helm --kube-context $(CTX) upgrade -i otel-collector opentelemetry-collector --repo https://open-telemetry.github.io/opentelemetry-helm-charts \
+	  --version 0.173.0 -n platform-observability -f platform/observability/otel-collector-values.yaml
 	kubectl --context $(CTX) create ns kagent --dry-run=client -o yaml | kubectl --context $(CTX) apply -f -
 	helm --kube-context $(CTX) upgrade --install kagent-crds oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds --version 0.10.0 -n kagent
 	helm --kube-context $(CTX) upgrade --install kagent oci://ghcr.io/kagent-dev/kagent/helm/kagent --version 0.10.0 -n kagent \
@@ -52,7 +54,7 @@ status:        ## what Argo and the minter have done
 
 observe:       ## open Grafana for traces, metrics, and the prompt audit log
 	@echo "Grafana: http://localhost:3000  (Explore -> Tempo for traces, Loki for the audit stream)"
-	kubectl --context $(CTX) -n platform-observability port-forward svc/otel-collector 3000:3000
+	kubectl --context $(CTX) -n platform-observability port-forward svc/otel-lgtm 3000:3000
 
 test:          ## unit tests, chart lint, render every agent, schema negative tests
 	python3 -m unittest discover -s tests
