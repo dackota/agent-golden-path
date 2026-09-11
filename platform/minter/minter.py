@@ -161,8 +161,9 @@ def key_body(reg, ns, team_id):
 
 def metrics_key_body():
     """A key that authenticates to /metrics and nothing else."""
+    # /metrics is an admin route unless the key names it in allowed_routes.
     return {"key_alias": METRICS_KEY_ALIAS, "models": [NO_MODEL], "max_budget": 0.0001,
-            "metadata": {"purpose": "metrics"}}
+            "allowed_routes": ["/metrics", "/metrics/"], "metadata": {"purpose": "metrics"}}
 
 
 def mint_llm_key(reg, ns, team_id):

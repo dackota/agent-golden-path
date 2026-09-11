@@ -231,6 +231,11 @@ class MetricsKeyBody(unittest.TestCase):
         self.assertGreater(body["max_budget"], 0)
         self.assertLess(body["max_budget"], 0.001)
 
+    def test_may_read_metrics_and_no_other_route(self):
+        """Tested live: without allowed_routes LiteLLM treats /metrics as admin only."""
+        body = minter.metrics_key_body()
+        self.assertEqual(sorted(body["allowed_routes"]), ["/metrics", "/metrics/"])
+
     def test_is_named_for_what_it_is(self):
         body = minter.metrics_key_body()
         self.assertEqual(body["key_alias"], minter.METRICS_KEY_ALIAS)
