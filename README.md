@@ -47,7 +47,7 @@ team: demo
 owner: dackota.j@gmail.com
 description: A chat app that calls an LLM and one read-only tool.
 kind: container
-image: ghcr.io/dackota/agent-app-template:0.3.0
+image: ghcr.io/dackota/agent-app-template:0.4.0
 systemPrompt: You are a friendly helper. Keep answers under 30 words.
 tools:
   - name: k8s-readonly

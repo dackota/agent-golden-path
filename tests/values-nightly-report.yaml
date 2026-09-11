@@ -3,7 +3,7 @@ team: demo
 owner: dackota.j@gmail.com
 description: Summarizes yesterday's incidents every weekday morning.
 kind: container
-image: ghcr.io/dackota/agent-app-template:0.3.0
+image: ghcr.io/dackota/agent-app-template:0.4.0
 schedule: "0 7 * * 1-5"
 size: medium
 expose:
