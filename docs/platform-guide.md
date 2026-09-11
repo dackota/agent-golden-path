@@ -143,6 +143,9 @@ master key. Tool calls without Grafana: agentgateway logs in
 
 ## Known limits
 
+- LiteLLM's Postgres keeps every agent key on a PersistentVolumeClaim. If that
+  claim is ever lost, every agent gets 401. Delete the `*-platform-credentials`
+  Secrets and the minter re-mints within a minute, then restart the pods.
 - The minter cannot recover a lost LiteLLM key. It deletes the alias and mints
   a new one, which changes the key. Pods pick it up on restart.
 - Two agents with the same `name` in different teams share a tool policy

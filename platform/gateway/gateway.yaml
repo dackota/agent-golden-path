@@ -74,6 +74,7 @@ metadata:
   namespace: platform-gateway
 spec:
   replicas: 1
+  strategy: {type: Recreate}   # one writer on one disk
   selector: {matchLabels: {app: litellm-db}}
   template:
     metadata: {labels: {app: litellm-db}}
@@ -84,11 +85,32 @@ spec:
           env:
             - {name: POSTGRES_USER, value: litellm}
             - {name: POSTGRES_DB, value: litellm}
+            # A subdirectory, so a provisioner's lost+found does not stop initdb.
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
             - name: POSTGRES_PASSWORD
               valueFrom: {secretKeyRef: {name: litellm-secrets, key: POSTGRES_PASSWORD}}
           ports: [{containerPort: 5432}]
           readinessProbe:
             exec: {command: [pg_isready, -U, litellm]}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: litellm-db-data}
+---
+# Every agent's virtual key lives in this database. Without a disk a restart of
+# the Postgres pod wiped them all, and every agent got 401 until its Secret was
+# deleted and re-minted.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: litellm-db-data
+  namespace: platform-gateway
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
 ---
 apiVersion: v1
 kind: Service
